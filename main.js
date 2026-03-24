@@ -201,6 +201,67 @@ function vmPathFromName(name, mode = "terminal") {
   return dir === "/" ? `/${base}` : `${dir}/${base}`;
 }
 
+function parseGitHubRepoInput(input) {
+  const raw = (input || "").trim();
+  if (!raw) throw new Error("Enter a GitHub repo URL first.");
+  const normalized = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
+  const u = new URL(normalized);
+  if (u.hostname !== "github.com" && u.hostname !== "www.github.com") {
+    throw new Error("Only github.com URLs are supported.");
+  }
+  const parts = u.pathname.split("/").filter(Boolean);
+  if (parts.length < 2) {
+    throw new Error("Expected URL format: github.com/owner/repo");
+  }
+  const owner = parts[0];
+  const repo = parts[1].replace(/\.git$/i, "");
+  let branch = "main";
+  const treeIdx = parts.indexOf("tree");
+  if (treeIdx >= 0 && parts[treeIdx + 1]) {
+    branch = decodeURIComponent(parts[treeIdx + 1]);
+  }
+  return { owner, repo, branch };
+}
+
+async function importGitHubRepoIntoVm(emulator, repoInput, mode) {
+  assertFsApi(emulator);
+  const { owner, repo, branch } = parseGitHubRepoInput(repoInput);
+  const zipUrl = `https://codeload.github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/zip/refs/heads/${encodeURIComponent(branch)}`;
+  const response = await fetch(zipUrl);
+  if (!response.ok) {
+    throw new Error(`GitHub download failed (${response.status}).`);
+  }
+  const zipBuffer = await response.arrayBuffer();
+  const zip = await JSZip.loadAsync(zipBuffer);
+  const rootDir = `${safeName(repo)}-${safeName(branch)}`;
+  const vmRoot = `${getUploadDir(mode)}/${safeName(repo)}`;
+  let imported = 0;
+
+  const entries = Object.keys(zip.files).sort();
+  for (const name of entries) {
+    const entry = zip.files[name];
+    if (entry.dir) continue;
+    const rel = name.startsWith(`${rootDir}/`) ? name.slice(rootDir.length + 1) : name;
+    if (!rel) continue;
+    const vmPath = `${vmRoot}/${rel}`.replace(/\\/g, "/");
+    const bytes = new Uint8Array(await entry.async("uint8array"));
+    await emulator.create_file(vmPath, bytes);
+    const record = {
+      vmPath,
+      name: rel.split("/").pop() || rel,
+      size: bytes.byteLength,
+      type: "application/octet-stream",
+      updatedAt: Date.now(),
+      bytes
+    };
+    await idbPut(record);
+    filesManifest.set(vmPath, record);
+    imported++;
+  }
+  renderRows();
+  return { imported, vmRoot, owner, repo, branch };
+}
+
 function renderRows() {
   const tbody = document.getElementById("rows");
   tbody.innerHTML = "";
@@ -489,6 +550,8 @@ function bindUi(emulator, prefs) {
   const serialInput = document.getElementById("serial_input");
   const sendBtn = document.getElementById("serial_send_btn");
   const ctrlCBtn = document.getElementById("serial_ctrl_c_btn");
+  const githubRepoInput = document.getElementById("githubRepoInput");
+  const importGithubBtn = document.getElementById("importGithubBtn");
   const focusVmBtn = document.getElementById("focusVmBtn");
   const bootModeSelect = document.getElementById("bootModeSelect");
   const qualitySelect = document.getElementById("qualitySelect");
@@ -578,6 +641,24 @@ function bindUi(emulator, prefs) {
       setStatus(`Import failed: ${error.message}`, "err");
     }
   });
+
+  if (importGithubBtn) {
+    importGithubBtn.addEventListener("click", async () => {
+      try {
+        const emu = activeEmulator();
+        if (!emu) throw new Error("VM is not running.");
+        const input = githubRepoInput ? githubRepoInput.value : "";
+        setStatus("Importing repo from GitHub via host browser...");
+        const result = await importGitHubRepoIntoVm(emu, input, currentMode);
+        setStatus(
+          `Imported ${result.imported} files from ${result.owner}/${result.repo}@${result.branch} to ${result.vmRoot}.`,
+          "ok"
+        );
+      } catch (error) {
+        setStatus(`GitHub import failed: ${error.message}`, "err");
+      }
+    });
+  }
 
   document.getElementById("restoreBtn").addEventListener("click", async () => {
     try {
