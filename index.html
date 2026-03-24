@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CatchMeVM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600&display=optional" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0c0f17;
+      --panel: #141922;
+      --border: #252b38;
+      --text: #e8ecf4;
+      --muted: #6b7a94;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --err: #f87171;
+      --accent: #60a5fa;
+      --radius: 10px;
+      --gap: 12px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Outfit", system-ui, sans-serif;
+      font-size: 15px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: var(--gap);
+      min-height: 100vh;
+      padding: var(--gap);
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .panel-title {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .toolbar .field {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .toolbar select {
+      background: #1a2130;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-family: inherit;
+      font-size: 0.875rem;
+    }
+
+    #screen_container {
+      height: 65vh;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: #000;
+      overflow: hidden;
+      contain: layout paint;
+      transform: translateZ(0);
+      isolation: isolate;
+    }
+
+    #screen_container > div {
+      white-space: pre;
+      font: 14px/1.3 "JetBrains Mono", "Consolas", "Courier New", monospace;
+      line-height: 1.3;
+      color: #94a3b8;
+      padding: 8px;
+      overflow: visible;
+    }
+
+    #screen_container > canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      transform: translateZ(0);
+    }
+
+    #screen_container:fullscreen,
+    #screen_container:-webkit-full-screen {
+      display: flex !important;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+
+    #screen_container:fullscreen #vga,
+    #screen_container:-webkit-full-screen #vga {
+      width: auto !important;
+      height: 100% !important;
+      max-width: 100%;
+      max-height: 100%;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .row:last-of-type { margin-bottom: 0; }
+
+    button, .labelBtn {
+      background: #1a2130;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    button:hover, .labelBtn:hover {
+      background: #222b3d;
+      border-color: var(--accent);
+    }
+
+    .labelBtn input { display: none; }
+
+    #focusVmBtn { margin-top: 10px; }
+
+    #serialDetails { margin-top: 12px; }
+
+    #serialDetails summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+
+    .vm-ip-hint {
+      font-size: 0.8rem;
+      color: var(--accent);
+      margin-right: 8px;
+    }
+
+    #serial_console {
+      margin-top: 8px;
+      height: 140px;
+      overflow: auto;
+      overflow-anchor: auto;
+      user-select: text;
+      -webkit-user-select: text;
+      background: #0a0d12;
+      contain: layout;
+      transform: translateZ(0);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      color: #94a3b8;
+      font: 13px "JetBrains Mono", monospace;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .serial-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    #serial_input {
+      flex: 1;
+      background: #0a0d12;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 10px;
+      font: 13px "JetBrains Mono", monospace;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .dropzone.active {
+      border-color: var(--accent);
+      background: rgba(96, 165, 250, 0.08);
+      color: var(--text);
+    }
+
+    .status {
+      min-height: 22px;
+      margin-bottom: 10px;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.warn { color: var(--warn); }
+    .status.err { color: var(--err); }
+
+    .files-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .files-table th, .files-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+
+    .files-table th {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 12px;
+      margin-bottom: 0;
+    }
+
+    code { color: var(--accent); font-family: "JetBrains Mono", monospace; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <section class="panel">
+      <h2 class="panel-title">VM</h2>
+      <div class="toolbar">
+        <label class="field">
+          Mode
+          <select id="bootModeSelect">
+            <option value="gui">GUI</option>
+            <option value="terminal">Terminal</option>
+          </select>
+        </label>
+        <label class="field">
+          Quality
+          <select id="qualitySelect">
+            <option value="1">Standard</option>
+            <option value="1.5">High</option>
+            <option value="2">Ultra</option>
+          </select>
+        </label>
+        <button id="rebootBtn">Apply & Reboot</button>
+        <button id="fullscreenBtn">Fullscreen</button>
+      </div>
+      <div id="screen_container">
+        <div tabindex="0"></div>
+        <canvas tabindex="0"></canvas>
+      </div>
+      <div class="row">
+        <button id="focusVmBtn">Focus VM</button>
+      </div>
+      <details id="serialDetails">
+        <summary>Serial console</summary>
+        <div class="serial-controls" style="margin-bottom:6px;">
+          <span class="vm-ip-hint">VM IP: 192.168.86.100</span>
+          <button id="showIpBtn" type="button">Show IP in VM</button>
+        </div>
+        <div id="serial_console">[serial] waiting for boot output...</div>
+        <div class="serial-controls">
+          <input id="serial_input" type="text" placeholder="Type command and press Enter" />
+          <button id="serial_send_btn">Send</button>
+          <button id="serial_ctrl_c_btn">Ctrl+C</button>
+        </div>
+      </details>
+      <p class="hint">Click VM to type. Ctrl+V to paste. VM IP: 192.168.86.100. SSH included.</p>
+    </section>
+
+    <aside class="panel">
+      <h2 class="panel-title">Files</h2>
+      <div id="dropzone" class="dropzone">Drop files or choose</div>
+      <div class="row">
+        <label class="labelBtn">Choose files<input id="fileInput" type="file" multiple /></label>
+        <button id="importBtn">Import</button>
+        <button id="restoreBtn">Restore</button>
+      </div>
+      <div class="row">
+        <button id="exportSelectedBtn">Export selected</button>
+        <button id="exportAllBtn">Export all</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+      <div id="status" class="status">Starting VM…</div>
+      <table class="files-table">
+        <thead>
+          <tr>
+            <th><input id="checkAll" type="checkbox" /></th>
+            <th>Path</th>
+            <th>Size</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </aside>
+  </div>
+
+  <script src="./assets/v86/libv86.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "name": "catchmevm-app",
+  "version": "1.0.0",
+  "scripts": {
+    "serve": "npx --yes serve -l 8000",
+    "start": "npx --yes serve -l 8000"
+  }
+}

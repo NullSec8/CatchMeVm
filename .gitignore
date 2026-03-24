@@ -1,0 +1,26 @@
+# Build artifacts
+.tinycore-remaster/
+.9p-build-work/
+.9p-build-work-*/
+.toolchain-build/
+.offline-image-work/
+
+# Large built assets (run scripts to generate)
+assets/v86/TinyCore-11.0-dev.iso
+assets/v86/toolchain.tar.gz
+assets/v86/catchmevm-dev-initrd.cpio.gz
+assets/v86/catchmevm-dev.img
+assets/v86/catchmevm-dev-fs.json
+assets/v86/catchmevm-dev-flat/
+
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.log
+.vscode/
+.idea/
