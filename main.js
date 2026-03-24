@@ -347,7 +347,8 @@ async function startVm({ mode, quality, initialState = null }) {
     autostart: true,
     filesystem: {},
     net_device: {
-      type: "virtio",
+      // Use a broadly supported NIC so TinyCore can get a link reliably.
+      type: "ne2k",
       relay_url: "fetch"
     }
   };
@@ -445,6 +446,10 @@ async function startVm({ mode, quality, initialState = null }) {
       await restoreIntoVm(emulator);
       if (typeof emulator.screen_set_scale === "function") {
         emulator.screen_set_scale(quality, quality);
+      }
+      // Bring up networking automatically when the guest boots.
+      if (typeof emulator.serial0_send === "function") {
+        emulator.serial0_send("udhcpc -n -q -i eth0 || udhcpc -n -q -i ens3 || udhcpc -n -q -i enp0s3\n");
       }
       appendSerial("\n[serial] VM is ready.\n");
       setBootStep(3, "done");
@@ -710,6 +715,29 @@ function bindUi(emulator, prefs) {
     testNetworkBtn.addEventListener("click", () => {
       sendSerial("curl -s -o /dev/null -w 'HTTP %{http_code}\\n' https://example.com\n");
       setStatus("Sent network test. Check serial console (expect HTTP 200).", "ok");
+    });
+  }
+
+  const fixGitCloneBtn = document.getElementById("fixGitCloneBtn");
+  if (fixGitCloneBtn) {
+    fixGitCloneBtn.addEventListener("click", () => {
+      const bootstrapGitClone = [
+        "echo '[git-fix] bringing network up...'",
+        "udhcpc -n -q -i eth0 || udhcpc -n -q -i ens3 || udhcpc -n -q -i enp0s3 || true",
+        "echo 'nameserver 1.1.1.1' > /etc/resolv.conf",
+        "echo 'nameserver 8.8.8.8' >> /etc/resolv.conf",
+        "echo '[git-fix] syncing time for TLS cert checks...'",
+        "ntpd -q -p pool.ntp.org || busybox ntpd -q -p pool.ntp.org || true",
+        "echo '[git-fix] installing git + certs if missing...'",
+        "which git >/dev/null 2>&1 || tce-load -wi git ca-certificates curl openssl || true",
+        "echo '[git-fix] versions:'",
+        "git --version || echo 'git not installed'",
+        "echo '[git-fix] testing github access...'",
+        "git ls-remote https://github.com/git/git.git HEAD || echo 'github test failed'",
+        "echo '[git-fix] done. try: git clone https://github.com/<user>/<repo>.git'"
+      ].join("\n");
+      sendSerial(`${bootstrapGitClone}\n`);
+      setStatus("Sent git-clone fixer to VM. Check serial for [git-fix] logs.", "ok");
     });
   }
 
