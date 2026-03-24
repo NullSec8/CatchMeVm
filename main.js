@@ -15,7 +15,8 @@ const TINYCORE_DEV_ISO_PROXY = "/api/iso";
 const ARCH_LINUX_ISO_PROXY = "/api/arch-iso";
 const GITHUB_ZIP_PROXY = "/api/github-zip";
 const TINYCORE_DEV_ISO_RELEASE = "https://github.com/NullSec8/CatchMeVm/releases/download/v1.0/TinyCore-11.0-dev.iso";
-const ARCH_LINUX_ISO = "https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso";
+const ARCH_LINUX_ISO_STABLE = "https://archive.archlinux.org/iso/2025.02.01/archlinux-2025.02.01-x86_64.iso";
+const ARCH_LINUX_ISO_LATEST = "https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso";
 const MIN_ISO_SIZE = 50 * 1024 * 1024; // 50 MB - real ISO is ~132 MB, LFS pointer is ~130 bytes
 
 async function probeIsoUrl(url, minSize = MIN_ISO_SIZE) {
@@ -40,11 +41,19 @@ async function getIsoUrl(distro) {
         source: "arch-proxy",
       };
     }
-    const arch = await probeIsoUrl(ARCH_LINUX_ISO, MIN_ISO_SIZE);
+    const archStable = await probeIsoUrl(ARCH_LINUX_ISO_STABLE, MIN_ISO_SIZE);
+    if (archStable) {
+      return {
+        distro: DISTRO_ARCH,
+        url: archStable,
+        source: "arch-stable",
+      };
+    }
+    const archLatest = await probeIsoUrl(ARCH_LINUX_ISO_LATEST, MIN_ISO_SIZE);
     return {
       distro: DISTRO_ARCH,
-      url: arch || ARCH_LINUX_ISO,
-      source: "arch-mirror",
+      url: archLatest || ARCH_LINUX_ISO_LATEST,
+      source: "arch-latest",
     };
   }
 

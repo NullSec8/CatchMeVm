@@ -4,7 +4,7 @@
  * Supports Range requests for v86 chunked loading.
  */
 const DEFAULT_ARCH_ISO_URL =
-  "https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso";
+  "https://archive.archlinux.org/iso/2025.02.01/archlinux-2025.02.01-x86_64.iso";
 
 export default async function handler(req, res) {
   const isoUrl = process.env.CATCHMEVM_ARCH_ISO_URL || DEFAULT_ARCH_ISO_URL;
