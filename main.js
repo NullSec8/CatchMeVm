@@ -12,6 +12,7 @@ const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
 const TINYCORE_BASE_ISO = "./assets/v86/TinyCore-11.0.iso";
 // Proxy bypasses Vercel 100MB limit + CORS. Requires GitHub Release v1.0 with dev ISO.
 const TINYCORE_DEV_ISO_PROXY = "/api/iso";
+const ARCH_LINUX_ISO_PROXY = "/api/arch-iso";
 const GITHUB_ZIP_PROXY = "/api/github-zip";
 const TINYCORE_DEV_ISO_RELEASE = "https://github.com/NullSec8/CatchMeVm/releases/download/v1.0/TinyCore-11.0-dev.iso";
 const ARCH_LINUX_ISO = "https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso";
@@ -31,6 +32,14 @@ async function probeIsoUrl(url, minSize = MIN_ISO_SIZE) {
 
 async function getIsoUrl(distro) {
   if (distro === DISTRO_ARCH) {
+    const archProxy = await probeIsoUrl(ARCH_LINUX_ISO_PROXY, MIN_ISO_SIZE);
+    if (archProxy) {
+      return {
+        distro: DISTRO_ARCH,
+        url: archProxy,
+        source: "arch-proxy",
+      };
+    }
     const arch = await probeIsoUrl(ARCH_LINUX_ISO, MIN_ISO_SIZE);
     return {
       distro: DISTRO_ARCH,
@@ -429,7 +438,7 @@ async function startVm({ distro, mode, quality, initialState = null }) {
   const config = {
     wasm_path: "./assets/v86/v86.wasm",
     screen_container: document.getElementById("screen_container"),
-    memory_size: mode === "gui" ? 256 * 1024 * 1024 : 128 * 1024 * 1024,
+    memory_size: distro === DISTRO_ARCH ? 1024 * 1024 * 1024 : (mode === "gui" ? 256 * 1024 * 1024 : 128 * 1024 * 1024),
     vga_memory_size: mode === "gui" ? 16 * 1024 * 1024 : 8 * 1024 * 1024,
     bios: { url: "./assets/v86/seabios.bin" },
     vga_bios: { url: "./assets/v86/vgabios.bin" },
@@ -460,7 +469,7 @@ async function startVm({ distro, mode, quality, initialState = null }) {
   }
   if (mode === "terminal") {
     config.cmdline = "console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on text superuser";
-    config.memory_size = 512 * 1024 * 1024;
+    config.memory_size = distro === DISTRO_ARCH ? 1024 * 1024 * 1024 : 512 * 1024 * 1024;
   } else {
     config.cmdline = "console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on";
   }
