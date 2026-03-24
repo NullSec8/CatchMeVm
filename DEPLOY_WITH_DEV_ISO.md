@@ -34,6 +34,14 @@ git commit -m "Add dev ISO via LFS for full VM on Vercel"
 git push
 ```
 
-## 4. Redeploy on Vercel
+## 4. Enable Git LFS in Vercel (required)
 
-Vercel will automatically redeploy when you push. The dev ISO (~130MB) will be fetched via LFS during the build.
+1. Open your project on [vercel.com](https://vercel.com)
+2. Go to **Settings** → **Git**
+3. Enable **Include Git LFS files**
+
+Without this, Vercel serves LFS pointer files (~130 bytes) instead of the real ISO, and the VM will hang at "Booting from DVD/CD...".
+
+## 5. Redeploy on Vercel
+
+Trigger a new deployment (or push a commit). The dev ISO (~130MB) will be fetched via LFS during the build.
