@@ -7,7 +7,8 @@ const PREF_BOOT_MODE = "catchmevm.bootMode";
 const PREF_QUALITY = "catchmevm.quality";
 const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
 const TINYCORE_BASE_ISO = "./assets/v86/TinyCore-11.0.iso";
-// Fallback when LFS pointer is served instead of real file (Vercel). Create a release and upload the ISO.
+// Proxy bypasses Vercel 100MB limit + CORS. Requires GitHub Release v1.0 with dev ISO.
+const TINYCORE_DEV_ISO_PROXY = "/api/iso";
 const TINYCORE_DEV_ISO_RELEASE = "https://github.com/NullSec8/CatchMeVm/releases/download/v1.0/TinyCore-11.0-dev.iso";
 const MIN_ISO_SIZE = 50 * 1024 * 1024; // 50 MB - real ISO is ~132 MB, LFS pointer is ~130 bytes
 
@@ -17,6 +18,13 @@ async function getIsoUrl() {
     if (r.ok) {
       const size = parseInt(r.headers.get("content-length") || "0", 10);
       if (size >= MIN_ISO_SIZE) return TINYCORE_DEV_ISO;
+    }
+  } catch (_e) {}
+  try {
+    const r = await fetch(TINYCORE_DEV_ISO_PROXY, { method: "HEAD" });
+    if (r.ok) {
+      const size = parseInt(r.headers.get("content-length") || "0", 10);
+      if (size >= MIN_ISO_SIZE) return TINYCORE_DEV_ISO_PROXY;
     }
   } catch (_e) {}
   try {
@@ -345,7 +353,7 @@ async function startVm({ mode, quality, initialState = null }) {
   const isoUrl = await getIsoUrl();
   const usingBaseIso = isoUrl === TINYCORE_BASE_ISO;
   if (usingBaseIso) {
-    setStatus("Using base TinyCore (dev ISO not found). Build dev ISO locally for Python, GCC.", "warn");
+    setStatus("Using base TinyCore (dev ISO not found). Create GitHub Release v1.0 with TinyCore-11.0-dev.iso.", "warn");
   }
   config.cdrom = { url: isoUrl };
   config.boot_order = 0x132;

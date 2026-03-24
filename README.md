@@ -35,7 +35,7 @@ Requires: Docker, `assets/v86/TinyCore-11.0.iso` (source ISO)
 
 ## Live Demo / Deploy
 
-**Vercel:** Connect the repo to [Vercel](https://vercel.com); it will serve the static files. Ensure `TinyCore-11.0-dev.iso` exists in `assets/v86/` (the dev ISO is large; build via remaster script or host elsewhere).
+**Vercel:** Connect the repo to [Vercel](https://vercel.com). For full dev tools (Python, GCC, etc.): create a GitHub Release **v1.0** with `TinyCore-11.0-dev.iso` attached. The built-in `/api/iso` proxy fetches it (bypasses 100MB static limit + CORS). See [DEPLOY_WITH_DEV_ISO.md](DEPLOY_WITH_DEV_ISO.md).
 
 **GitHub Pages:** Enable Pages in repo Settings → Pages → Deploy from branch, select the branch and `/` (root).
 
