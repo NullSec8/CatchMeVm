@@ -1,7 +1,8 @@
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const DB_NAME = "catchmevm-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "files";
+const STORE_SNAPSHOTS = "snapshots";
 const PREF_BOOT_MODE = "catchmevm.bootMode";
 const PREF_QUALITY = "catchmevm.quality";
 const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
@@ -39,6 +40,9 @@ function openDb() {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: "vmPath" });
+      }
+      if (!db.objectStoreNames.contains(STORE_SNAPSHOTS)) {
+        db.createObjectStore(STORE_SNAPSHOTS, { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -84,6 +88,67 @@ async function idbClear() {
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
+}
+
+async function idbSnapshotPut(record) {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_SNAPSHOTS, "readwrite");
+    tx.objectStore(STORE_SNAPSHOTS).put(record);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function idbSnapshotGetAll() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_SNAPSHOTS, "readonly");
+    const req = tx.objectStore(STORE_SNAPSHOTS).getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSnapshotGet(id) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_SNAPSHOTS, "readonly");
+    const req = tx.objectStore(STORE_SNAPSHOTS).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSnapshotDelete(id) {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_SNAPSHOTS, "readwrite");
+    tx.objectStore(STORE_SNAPSHOTS).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function renderSnapshotList() {
+  const ul = document.getElementById("snapshotList");
+  if (!ul) return;
+  idbSnapshotGetAll().then(snapshots => {
+    ul.innerHTML = "";
+    const sorted = snapshots.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    for (const s of sorted) {
+      const li = document.createElement("li");
+      const date = s.createdAt ? new Date(s.createdAt).toLocaleString() : "";
+      li.innerHTML = `
+        <span title="${s.name || s.id}">${s.name || "Unnamed"} <small>(${date})</small></span>
+        <span class="snapshot-actions">
+          <button data-snapshot-restore="${s.id}">Restore</button>
+          <button data-snapshot-delete="${s.id}">Delete</button>
+        </span>
+      `;
+      ul.appendChild(li);
+    }
+  }).catch(err => console.warn("Snapshot list failed:", err));
 }
 
 const filesManifest = new Map();
@@ -198,8 +263,8 @@ function applyModeUi(mode) {
   }
 }
 
-async function startVm({ mode, quality }) {
-  setStatus("Booting CatchMeVM...");
+async function startVm({ mode, quality, initialState = null }) {
+  setStatus(initialState ? "Restoring snapshot..." : "Booting CatchMeVM...");
   const serialEl = document.getElementById("serial_console");
   applyModeUi(mode);
 
@@ -256,6 +321,15 @@ async function startVm({ mode, quality }) {
 
   config.cdrom = { url: TINYCORE_DEV_ISO };
   config.boot_order = 0x132;
+  if (initialState) {
+    config.initial_state = {
+      buffer: initialState,
+      load: function() {
+        const self = this;
+        setTimeout(() => { if (self.onload) self.onload(); }, 0);
+      }
+    };
+  }
   if (mode === "terminal") {
     config.cmdline = "console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on text superuser";
     config.memory_size = 512 * 1024 * 1024;
@@ -306,6 +380,7 @@ async function startVm({ mode, quality }) {
           : "GUI ready. Python, GCC, etc. Same dev env as terminal. Files in /tmp.",
         "ok"
       );
+      renderSnapshotList();
     } catch (error) {
       setStatus(`VM ready, but file bridge failed: ${error.message}`, "err");
     }
@@ -602,6 +677,79 @@ function bindUi(emulator, prefs) {
       await startVm({ mode: nextMode, quality: nextQuality });
     });
   }
+
+  const saveSnapshotBtn = document.getElementById("saveSnapshotBtn");
+  const snapshotNameInput = document.getElementById("snapshotName");
+  if (saveSnapshotBtn) {
+    saveSnapshotBtn.addEventListener("click", async () => {
+      const emu = activeEmulator();
+      if (!emu) {
+        setStatus("VM is not running.", "warn");
+        return;
+      }
+      const name = (snapshotNameInput?.value || "").trim() || `Snapshot ${new Date().toLocaleString()}`;
+      try {
+        setStatus("Saving snapshot...");
+        const state = await emu.save_state();
+        if (!state || !(state instanceof ArrayBuffer)) {
+          throw new Error("save_state did not return ArrayBuffer");
+        }
+        const id = `snap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        await idbSnapshotPut({
+          id,
+          name,
+          state,
+          mode: currentMode,
+          createdAt: Date.now()
+        });
+        if (snapshotNameInput) snapshotNameInput.value = "";
+        renderSnapshotList();
+        setStatus(`Snapshot "${name}" saved.`, "ok");
+      } catch (err) {
+        setStatus(`Save failed: ${err.message}`, "err");
+      }
+    });
+  }
+
+  const snapshotList = document.getElementById("snapshotList");
+  if (snapshotList) {
+    snapshotList.addEventListener("click", async (e) => {
+      const restoreBtn = e.target.closest("[data-snapshot-restore]");
+      const deleteBtn = e.target.closest("[data-snapshot-delete]");
+      if (restoreBtn) {
+        const id = restoreBtn.getAttribute("data-snapshot-restore");
+        const snap = await idbSnapshotGet(id);
+        if (!snap || !snap.state) {
+          setStatus("Snapshot not found or invalid.", "err");
+          return;
+        }
+        const state = snap.state instanceof ArrayBuffer ? snap.state : new ArrayBuffer(snap.state);
+        const mode = snap.mode || bootModeSelect?.value || "gui";
+        const quality = Number(qualitySelect?.value || "1");
+        setBootPreferences(mode, quality);
+        if (bootModeSelect) bootModeSelect.value = mode;
+        setStatus("Restoring snapshot...");
+        if (currentEmulator && typeof currentEmulator.destroy === "function") {
+          try {
+            await currentEmulator.destroy();
+          } catch (_err) {}
+        }
+        await startVm({ mode, quality, initialState: state });
+      }
+      if (deleteBtn) {
+        const id = deleteBtn.getAttribute("data-snapshot-delete");
+        try {
+          await idbSnapshotDelete(id);
+          renderSnapshotList();
+          setStatus("Snapshot deleted.", "ok");
+        } catch (err) {
+          setStatus(`Delete failed: ${err.message}`, "err");
+        }
+      }
+    });
+  }
+
+  renderSnapshotList();
 
   function syncFullscreenCentering() {
     if (!screen) return;

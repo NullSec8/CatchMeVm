@@ -41,6 +41,16 @@
       padding: var(--gap);
     }
 
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+      }
+      .layout .panel:first-child { order: 1; }
+      .layout .panel:last-child { order: 2; }
+      #screen_container { height: 50vh; min-height: 240px; }
+    }
+
     .panel {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -258,6 +268,35 @@
       margin-bottom: 0;
     }
 
+    .snapshots-panel summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+
+    .snapshot-list {
+      list-style: none;
+      padding: 0;
+      margin: 8px 0 0;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    .snapshot-list li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      background: #0a0d12;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+
+    .snapshot-list li span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+    .snapshot-list .snapshot-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
     code { color: var(--accent); font-family: "JetBrains Mono", monospace; }
   </style>
 </head>
@@ -284,6 +323,14 @@
         <button id="rebootBtn">Apply & Reboot</button>
         <button id="fullscreenBtn">Fullscreen</button>
       </div>
+      <details class="snapshots-panel" style="margin-bottom:12px;">
+        <summary>Snapshots</summary>
+        <div class="row" style="margin-top:8px;">
+          <input id="snapshotName" type="text" placeholder="Snapshot name" style="flex:1;background:#0a0d12;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:0.875rem;" />
+          <button id="saveSnapshotBtn">Save</button>
+        </div>
+        <ul id="snapshotList" class="snapshot-list"></ul>
+      </details>
       <div id="screen_container">
         <div tabindex="0"></div>
         <canvas tabindex="0"></canvas>
