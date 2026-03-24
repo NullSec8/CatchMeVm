@@ -39,22 +39,28 @@ function withArchProxy(path) {
   return `${ARCH_ASSET_PROXY}?path=${encodeURIComponent(path)}`;
 }
 
-async function getArchAssetConfig() {
-  const stateProxy = withArchProxy("arch_state-v3.bin.zst");
-  const fsProxy = withArchProxy("fs.json");
-  const baseProxy = `${ARCH_ASSET_PROXY}?path=arch/`;
-  const proxyAvailable = await probeIsoUrl(stateProxy, 1);
+/** Use same-origin proxy so v86 can fetch fs.json + hashed blobs without CORS. */
+function archAssetsPreferProxy() {
+  if (typeof window === "undefined") return true;
+  const p = window.location?.protocol;
+  return p === "http:" || p === "https:";
+}
 
-  if (proxyAvailable) {
+/**
+ * Arch uses v86's 9p + bzImage bootstrap (not a live ISO). Never rely on HEAD
+ * probes to pick URLs: they often fail on serverless and force a broken
+ * fallback to https://i.copy.sh (blocked by CORS in the browser).
+ */
+function getArchAssetConfig() {
+  if (archAssetsPreferProxy()) {
     return {
-      baseurl: baseProxy,
-      basefs: fsProxy,
-      state: stateProxy,
+      baseurl: `${ARCH_ASSET_PROXY}?path=arch/`,
+      basefs: withArchProxy("fs.json"),
+      state: withArchProxy("arch_state-v3.bin.zst"),
       canUseState: false,
       source: "proxy",
     };
   }
-
   return {
     baseurl: ARCH_FS_BASEURL,
     basefs: ARCH_FS_INDEX,
@@ -480,7 +486,7 @@ async function startVm({ distro, mode, quality, initialState = null }) {
   const config = {
     wasm_path: "./assets/v86/v86.wasm",
     screen_container: document.getElementById("screen_container"),
-    memory_size: distro === DISTRO_ARCH ? 1024 * 1024 * 1024 : (mode === "gui" ? 256 * 1024 * 1024 : 128 * 1024 * 1024),
+    memory_size: mode === "gui" ? 256 * 1024 * 1024 : 128 * 1024 * 1024,
     vga_memory_size: mode === "gui" ? 16 * 1024 * 1024 : 8 * 1024 * 1024,
     bios: { url: "./assets/v86/seabios.bin" },
     vga_bios: { url: "./assets/v86/vgabios.bin" },
@@ -495,11 +501,12 @@ async function startVm({ distro, mode, quality, initialState = null }) {
 
   let usingBaseIso = false;
   if (distro === DISTRO_ARCH) {
-    const archAssets = await getArchAssetConfig();
-    // Use the upstream v86 Arch profile (state + 9p filesystem), which is far
-    // more reliable in-browser than booting modern Arch live ISOs.
-    config.memory_size = 512 * 1024 * 1024;
+    const archAssets = getArchAssetConfig();
+    // Use the upstream v86 Arch profile (9p filesystem + bzImage/initrd), not
+    // x86_64 live ISOs (wrong arch / unreliable in v86).
+    config.memory_size = 768 * 1024 * 1024;
     config.vga_memory_size = 8 * 1024 * 1024;
+    config.acpi = false;
     config.filesystem = {
       baseurl: archAssets.baseurl,
       basefs: { url: archAssets.basefs }
@@ -507,6 +514,7 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     config.bzimage_initrd_from_filesystem = true;
     config.cmdline = [
       "rw apm=off vga=0x344 video=vesafb:ypan,vremap:8",
+      "console=ttyS0",
       "root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose",
       "mitigations=off audit=0",
       "init_on_free=on",
@@ -615,12 +623,19 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     }
   });
   addListener("download-error", e => {
+    let http = "";
+    if (e && e.request && typeof e.request.status === "number" && e.request.status) {
+      http = ` HTTP ${e.request.status}`;
+    }
     const msg =
       (e && e.message) ||
       (e && e.statusText) ||
       (typeof e === "string" ? e : JSON.stringify(e || {})) ||
       "Unknown download failure.";
-    setStatus(`Asset download failed: ${msg}. Try reboot once, then switch distro if it persists.`, "err");
+    setStatus(
+      `Asset download failed:${http} ${msg}. Deploy must include /api (e.g. Vercel). Or switch to TinyCore.`,
+      "err"
+    );
   });
 
   addListener("emulator-ready", async () => {
@@ -629,18 +644,32 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     setBootStep(3, "active");
     try {
       assertFsApi(emulator);
-      await restoreIntoVm(emulator);
+      // Arch root is a 9p tree from upstream; /tmp may not exist for host file
+      // injection until the guest creates it — skip restore for Arch to avoid
+      // spurious bridge failures.
+      if (distro !== DISTRO_ARCH) {
+        await restoreIntoVm(emulator);
+      }
       if (typeof emulator.screen_set_scale === "function") {
         emulator.screen_set_scale(quality, quality);
       }
       // Bring up networking automatically when the guest boots.
       if (typeof emulator.serial0_send === "function") {
-        emulator.serial0_send("udhcpc -n -q -i eth0 || udhcpc -n -q -i ens3 || udhcpc -n -q -i enp0s3\n");
+        if (distro === DISTRO_ARCH) {
+          emulator.serial0_send(
+            "dhcpcd -w4 eth0 2>/dev/null || dhcpcd -w4 enp0s5 2>/dev/null || true\n"
+          );
+        } else {
+          emulator.serial0_send("udhcpc -n -q -i eth0 || udhcpc -n -q -i ens3 || udhcpc -n -q -i enp0s3\n");
+        }
       }
       appendSerial("\n[serial] VM is ready.\n");
       setBootStep(3, "done");
       const devNote = usingBaseIso ? " (base ISO—run remaster script locally for Python, GCC)" : "";
-      const osNote = distro === DISTRO_ARCH ? " Arch image is experimental and may boot slower." : "";
+      const osNote =
+        distro === DISTRO_ARCH
+          ? " First Arch boot can take 1–5 minutes while files load from the network."
+          : "";
       setStatus(
         mode === "terminal"
           ? `Terminal ready${devNote}${osNote}. Files in /tmp.`

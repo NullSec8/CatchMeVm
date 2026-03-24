@@ -27,7 +27,12 @@ export default async function handler(req, res) {
   try {
     const upstream = await fetch(url, {
       method: req.method,
-      headers: { ...headers, "X-Accept-Encoding": "identity" },
+      headers: {
+        ...headers,
+        "X-Accept-Encoding": "identity",
+        Accept: "*/*",
+        "User-Agent": "CatchMeVM-arch-asset-proxy/1",
+      },
     });
 
     if (!upstream.ok) {
