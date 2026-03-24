@@ -50,6 +50,7 @@ async function getArchAssetConfig() {
       baseurl: baseProxy,
       basefs: fsProxy,
       state: stateProxy,
+      canUseState: false,
       source: "proxy",
     };
   }
@@ -58,6 +59,7 @@ async function getArchAssetConfig() {
     baseurl: ARCH_FS_BASEURL,
     basefs: ARCH_FS_INDEX,
     state: ARCH_STATE_URL,
+    canUseState: false,
     source: "direct",
   };
 }
@@ -526,7 +528,7 @@ async function startVm({ distro, mode, quality, initialState = null }) {
           setTimeout(() => { if (self.onload) self.onload(); }, 0);
         }
       };
-    } else {
+    } else if (archAssets.canUseState) {
       config.initial_state = { url: archAssets.state };
     }
   } else {
