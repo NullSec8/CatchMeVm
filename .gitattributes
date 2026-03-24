@@ -1,0 +1,2 @@
+# Track dev ISO with Git LFS (enables full VM with Python, GCC, etc. on Vercel)
+assets/v86/TinyCore-11.0-dev.iso filter=lfs diff=lfs merge=lfs -text

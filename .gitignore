@@ -6,7 +6,7 @@
 .offline-image-work/
 
 # Large built assets (run scripts to generate)
-assets/v86/TinyCore-11.0-dev.iso
+# TinyCore-11.0-dev.iso is tracked via Git LFS - remove from ignore to include in deploy
 assets/v86/toolchain.tar.gz
 assets/v86/catchmevm-dev-initrd.cpio.gz
 assets/v86/catchmevm-dev.img
