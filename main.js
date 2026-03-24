@@ -3,42 +3,60 @@ const DB_NAME = "catchmevm-db";
 const DB_VERSION = 2;
 const STORE = "files";
 const STORE_SNAPSHOTS = "snapshots";
+const PREF_DISTRO = "catchmevm.distro";
 const PREF_BOOT_MODE = "catchmevm.bootMode";
 const PREF_QUALITY = "catchmevm.quality";
+const DISTRO_TINYCORE = "tinycore";
+const DISTRO_ARCH = "arch";
 const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
 const TINYCORE_BASE_ISO = "./assets/v86/TinyCore-11.0.iso";
 // Proxy bypasses Vercel 100MB limit + CORS. Requires GitHub Release v1.0 with dev ISO.
 const TINYCORE_DEV_ISO_PROXY = "/api/iso";
+const GITHUB_ZIP_PROXY = "/api/github-zip";
 const TINYCORE_DEV_ISO_RELEASE = "https://github.com/NullSec8/CatchMeVm/releases/download/v1.0/TinyCore-11.0-dev.iso";
+const ARCH_LINUX_ISO = "https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso";
 const MIN_ISO_SIZE = 50 * 1024 * 1024; // 50 MB - real ISO is ~132 MB, LFS pointer is ~130 bytes
 
-async function getIsoUrl() {
+async function probeIsoUrl(url, minSize = MIN_ISO_SIZE) {
   try {
-    const r = await fetch(TINYCORE_DEV_ISO, { method: "HEAD" });
-    if (r.ok) {
-      const size = parseInt(r.headers.get("content-length") || "0", 10);
-      if (size >= MIN_ISO_SIZE) return TINYCORE_DEV_ISO;
-    }
-  } catch (_e) {}
-  try {
-    const r = await fetch(TINYCORE_DEV_ISO_PROXY, { method: "HEAD" });
-    if (r.ok) {
-      const size = parseInt(r.headers.get("content-length") || "0", 10);
-      if (size >= MIN_ISO_SIZE) return TINYCORE_DEV_ISO_PROXY;
-    }
-  } catch (_e) {}
-  try {
-    const r = await fetch(TINYCORE_DEV_ISO_RELEASE, { method: "HEAD" });
-    if (r.ok) {
-      const size = parseInt(r.headers.get("content-length") || "0", 10);
-      if (size >= MIN_ISO_SIZE) return TINYCORE_DEV_ISO_RELEASE;
-    }
-  } catch (_e) {}
-  return TINYCORE_BASE_ISO;
+    const r = await fetch(url, { method: "HEAD" });
+    if (!r.ok) return null;
+    const size = parseInt(r.headers.get("content-length") || "0", 10);
+    if (size >= minSize) return url;
+    return null;
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function getIsoUrl(distro) {
+  if (distro === DISTRO_ARCH) {
+    const arch = await probeIsoUrl(ARCH_LINUX_ISO, MIN_ISO_SIZE);
+    return {
+      distro: DISTRO_ARCH,
+      url: arch || ARCH_LINUX_ISO,
+      source: "arch-mirror",
+    };
+  }
+
+  const localDev = await probeIsoUrl(TINYCORE_DEV_ISO, MIN_ISO_SIZE);
+  if (localDev) {
+    return { distro: DISTRO_TINYCORE, url: localDev, source: "tinycore-local-dev" };
+  }
+  const proxyDev = await probeIsoUrl(TINYCORE_DEV_ISO_PROXY, MIN_ISO_SIZE);
+  if (proxyDev) {
+    return { distro: DISTRO_TINYCORE, url: proxyDev, source: "tinycore-proxy-dev" };
+  }
+  const releaseDev = await probeIsoUrl(TINYCORE_DEV_ISO_RELEASE, MIN_ISO_SIZE);
+  if (releaseDev) {
+    return { distro: DISTRO_TINYCORE, url: releaseDev, source: "tinycore-release-dev" };
+  }
+  return { distro: DISTRO_TINYCORE, url: TINYCORE_BASE_ISO, source: "tinycore-base" };
 }
 
 let currentEmulator = null;
 let currentMode = "gui";
+let currentDistro = DISTRO_TINYCORE;
 let uiBound = false;
 let lastVmMemoryMb = 0;
 let serialStatsCapture = null;
@@ -227,10 +245,17 @@ async function importGitHubRepoIntoVm(emulator, repoInput, mode) {
   assertFsApi(emulator);
   const { owner, repo, branch } = parseGitHubRepoInput(repoInput);
   const zipUrl = `https://codeload.github.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/zip/refs/heads/${encodeURIComponent(branch)}`;
-  const response = await fetch(zipUrl);
-  if (!response.ok) {
-    throw new Error(`GitHub download failed (${response.status}).`);
+  let response;
+  try {
+    response = await fetch(zipUrl);
+  } catch (_err) {
+    response = null;
   }
+  if (!response || !response.ok) {
+    const proxyUrl = `${GITHUB_ZIP_PROXY}?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}`;
+    response = await fetch(proxyUrl);
+  }
+  if (!response.ok) throw new Error(`GitHub download failed (${response.status}).`);
   const zipBuffer = await response.arrayBuffer();
   const zip = await JSZip.loadAsync(zipBuffer);
   const rootDir = `${safeName(repo)}-${safeName(branch)}`;
@@ -332,15 +357,18 @@ async function restoreIntoVm(emulator) {
 }
 
 function getBootPreferences() {
+  const distro = localStorage.getItem(PREF_DISTRO) || DISTRO_TINYCORE;
   const mode = localStorage.getItem(PREF_BOOT_MODE) || "gui";
   const quality = Number(localStorage.getItem(PREF_QUALITY) || "1");
   return {
+    distro: distro === DISTRO_ARCH ? DISTRO_ARCH : DISTRO_TINYCORE,
     mode: mode === "terminal" ? "terminal" : "gui",
     quality: Number.isFinite(quality) && quality > 0 ? quality : 1
   };
 }
 
-function setBootPreferences(mode, quality) {
+function setBootPreferences(distro, mode, quality) {
+  localStorage.setItem(PREF_DISTRO, distro === DISTRO_ARCH ? DISTRO_ARCH : DISTRO_TINYCORE);
   localStorage.setItem(PREF_BOOT_MODE, mode);
   localStorage.setItem(PREF_QUALITY, String(quality));
 }
@@ -357,7 +385,7 @@ function applyModeUi(mode) {
   }
 }
 
-async function startVm({ mode, quality, initialState = null }) {
+async function startVm({ distro, mode, quality, initialState = null }) {
   setStatus(initialState ? "Restoring snapshot..." : "Booting CatchMeVM...");
   const serialEl = document.getElementById("serial_console");
   applyModeUi(mode);
@@ -414,12 +442,12 @@ async function startVm({ mode, quality, initialState = null }) {
     }
   };
 
-  const isoUrl = await getIsoUrl();
-  const usingBaseIso = isoUrl === TINYCORE_BASE_ISO;
-  if (usingBaseIso) {
+  const isoInfo = await getIsoUrl(distro);
+  const usingBaseIso = isoInfo.source === "tinycore-base";
+  if (usingBaseIso && distro !== DISTRO_ARCH) {
     setStatus("Using base TinyCore (dev ISO not found). Create GitHub Release v1.0 with TinyCore-11.0-dev.iso.", "warn");
   }
-  config.cdrom = { url: isoUrl };
+  config.cdrom = { url: isoInfo.url };
   config.boot_order = 0x132;
   if (initialState) {
     config.initial_state = {
@@ -440,8 +468,10 @@ async function startVm({ mode, quality, initialState = null }) {
   const emulator = new VMConstructor(config);
   currentEmulator = emulator;
   currentMode = mode;
+  currentDistro = distro;
   lastVmMemoryMb = Math.round(config.memory_size / (1024 * 1024));
-  setStatus(mode === "terminal" ? "VM created. Booting terminal mode..." : "VM created. Booting GUI mode...");
+  const distroLabel = distro === DISTRO_ARCH ? "Arch Linux" : "TinyCore";
+  setStatus(mode === "terminal" ? `VM created. Booting ${distroLabel} terminal mode...` : `VM created. Booting ${distroLabel} GUI mode...`);
 
   const bootProgressEl = document.getElementById("bootProgress");
   function setBootStep(step, state) {
@@ -515,10 +545,11 @@ async function startVm({ mode, quality, initialState = null }) {
       appendSerial("\n[serial] VM is ready.\n");
       setBootStep(3, "done");
       const devNote = usingBaseIso ? " (base ISO—run remaster script locally for Python, GCC)" : "";
+      const osNote = distro === DISTRO_ARCH ? " Arch image is experimental and may boot slower." : "";
       setStatus(
         mode === "terminal"
-          ? `Terminal ready${devNote}. Files in /tmp.`
-          : `GUI ready${devNote}. Files in /tmp.`,
+          ? `Terminal ready${devNote}${osNote}. Files in /tmp.`
+          : `GUI ready${devNote}${osNote}. Files in /tmp.`,
         "ok"
       );
       renderSnapshotList();
@@ -541,7 +572,7 @@ async function startVm({ mode, quality, initialState = null }) {
     }
   }, 25000);
 
-  bindUi(emulator, { mode, quality });
+  bindUi(emulator, { distro, mode, quality });
 }
 
 function bindUi(emulator, prefs) {
@@ -553,12 +584,14 @@ function bindUi(emulator, prefs) {
   const githubRepoInput = document.getElementById("githubRepoInput");
   const importGithubBtn = document.getElementById("importGithubBtn");
   const focusVmBtn = document.getElementById("focusVmBtn");
+  const distroSelect = document.getElementById("distroSelect");
   const bootModeSelect = document.getElementById("bootModeSelect");
   const qualitySelect = document.getElementById("qualitySelect");
   const rebootBtn = document.getElementById("rebootBtn");
   const fullscreenBtn = document.getElementById("fullscreenBtn");
   const screen = document.getElementById("screen_container");
 
+  if (distroSelect) distroSelect.value = prefs.distro;
   if (bootModeSelect) bootModeSelect.value = prefs.mode;
   if (qualitySelect) qualitySelect.value = String(prefs.quality);
 
@@ -907,16 +940,21 @@ function bindUi(emulator, prefs) {
   if (qualitySelect) {
     qualitySelect.addEventListener("change", () => {
       const scale = Number(qualitySelect.value || "1");
-      setBootPreferences(bootModeSelect?.value || "gui", scale);
+      setBootPreferences(
+        distroSelect?.value === DISTRO_ARCH ? DISTRO_ARCH : DISTRO_TINYCORE,
+        bootModeSelect?.value || "gui",
+        scale
+      );
       setStatus("Quality saved. Click Apply & Reboot to apply.", "ok");
     });
   }
 
   if (rebootBtn) {
     rebootBtn.addEventListener("click", async () => {
+      const nextDistro = distroSelect?.value === DISTRO_ARCH ? DISTRO_ARCH : DISTRO_TINYCORE;
       const nextMode = bootModeSelect?.value === "terminal" ? "terminal" : "gui";
       const nextQuality = Number(qualitySelect?.value || "1");
-      setBootPreferences(nextMode, nextQuality);
+      setBootPreferences(nextDistro, nextMode, nextQuality);
       setStatus("Rebooting VM with new mode...");
       if (currentEmulator && typeof currentEmulator.destroy === "function") {
         try {
@@ -925,7 +963,7 @@ function bindUi(emulator, prefs) {
           // ignore destroy errors and continue boot
         }
       }
-      await startVm({ mode: nextMode, quality: nextQuality });
+      await startVm({ distro: nextDistro, mode: nextMode, quality: nextQuality });
     });
   }
 
@@ -950,6 +988,7 @@ function bindUi(emulator, prefs) {
           id,
           name,
           state,
+          distro: currentDistro,
           mode: currentMode,
           createdAt: Date.now()
         });
@@ -975,9 +1014,11 @@ function bindUi(emulator, prefs) {
           return;
         }
         const state = snap.state instanceof ArrayBuffer ? snap.state : new ArrayBuffer(snap.state);
+        const distro = snap.distro === DISTRO_ARCH ? DISTRO_ARCH : (distroSelect?.value || DISTRO_TINYCORE);
         const mode = snap.mode || bootModeSelect?.value || "gui";
         const quality = Number(qualitySelect?.value || "1");
-        setBootPreferences(mode, quality);
+        setBootPreferences(distro, mode, quality);
+        if (distroSelect) distroSelect.value = distro;
         if (bootModeSelect) bootModeSelect.value = mode;
         setStatus("Restoring snapshot...");
         if (currentEmulator && typeof currentEmulator.destroy === "function") {
@@ -985,7 +1026,7 @@ function bindUi(emulator, prefs) {
             await currentEmulator.destroy();
           } catch (_err) {}
         }
-        await startVm({ mode, quality, initialState: state });
+        await startVm({ distro, mode, quality, initialState: state });
       }
       if (deleteBtn) {
         const id = deleteBtn.getAttribute("data-snapshot-delete");
