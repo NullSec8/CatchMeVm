@@ -717,12 +717,9 @@ function bindUi(emulator, prefs) {
 
   if (focusVmBtn) {
     focusVmBtn.addEventListener("click", () => {
-      const canvas = document.querySelector("#screen_container canvas");
-      const textLayer = document.querySelector("#screen_container > div");
-      if (canvas && typeof canvas.focus === "function") canvas.focus();
-      if (textLayer && typeof textLayer.focus === "function") textLayer.focus();
+      if (screen && typeof screen.focus === "function") screen.focus();
       window.focus();
-      setStatus("VM display focused. Keyboard input should now work.", "ok");
+      setStatus("VM focused. Type directly. Use Paste button or Ctrl+V.", "ok");
     });
   }
 
@@ -882,14 +879,11 @@ function bindUi(emulator, prefs) {
   document.addEventListener("fullscreenchange", syncFullscreenCentering);
   document.addEventListener("webkitfullscreenchange", syncFullscreenCentering);
 
-  // Click-to-focus behavior to type directly in the VM display
+  // Click-to-focus: screen_container has tabindex so it receives keyboard events
   if (screen) {
     screen.addEventListener("click", () => {
-      const canvas = screen.querySelector("canvas");
-      const textLayer = screen.querySelector("div");
-      if (canvas && typeof canvas.focus === "function") canvas.focus();
-      if (textLayer && typeof textLayer.focus === "function") textLayer.focus();
-      setStatus("VM display focused. Type directly. Ctrl+V to paste.", "ok");
+      screen.focus();
+      setStatus("VM focused. Type directly. Use Paste button or Ctrl+V.", "ok");
     });
   }
 
@@ -899,11 +893,18 @@ function bindUi(emulator, prefs) {
   function isVmDisplayFocused() {
     if (!screen) return false;
     const el = document.activeElement;
-    return el && screen.contains(el);
+    return el && (el === screen || screen.contains(el));
   }
 
   function isSerialConsoleFocused() {
     return serialConsole && document.activeElement === serialConsole;
+  }
+
+  function isInEditableField() {
+    const el = document.activeElement;
+    if (!el || !el.tagName) return false;
+    const tag = el.tagName.toUpperCase();
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
   }
 
   const PASTE_DELAY_MS = 12;
@@ -937,33 +938,55 @@ function bindUi(emulator, prefs) {
   }
 
   function handlePaste(text) {
-    if (isSerialConsoleFocused()) {
+    if (currentMode === "terminal" || isSerialConsoleFocused()) {
       sendSerialThrottled(text + "\n");
       return true;
     }
-    if (isVmDisplayFocused()) {
-      return sendPasteToVm(text);
+    return sendPasteToVm(text);
+  }
+
+  function doPaste() {
+    if (!activeEmulator()) {
+      setStatus("VM not running.", "warn");
+      return;
     }
-    return false;
+    navigator.clipboard.readText().then(
+      text => {
+        if (text && handlePaste(text)) setStatus("Pasted to VM.", "ok");
+        else setStatus("Nothing to paste.", "warn");
+      },
+      () => setStatus("Paste failed. Allow clipboard access.", "warn")
+    );
+  }
+
+  const pasteBtn = document.getElementById("pasteBtn");
+  if (pasteBtn) pasteBtn.addEventListener("click", doPaste);
+
+  const copySerialBtn = document.getElementById("copySerialBtn");
+  if (copySerialBtn) {
+    copySerialBtn.addEventListener("click", () => {
+      const sel = window.getSelection();
+      const selected = sel && sel.toString();
+      let text = selected && selected.length > 0 ? selected : (serialConsole?.textContent || "").replace(/\s*\[serial\]\s*waiting[^\n]*/i, "").trim();
+      if (!text) {
+        setStatus("Nothing to copy.", "warn");
+        return;
+      }
+      navigator.clipboard.writeText(text).then(
+        () => setStatus("Copied to clipboard.", "ok"),
+        () => setStatus("Copy failed.", "warn")
+      );
+    });
   }
 
   document.addEventListener(
     "keydown",
     e => {
       const isPaste = (e.ctrlKey || e.metaKey) && e.key === "v";
-      if (!isPaste || (!isVmDisplayFocused() && !isSerialConsoleFocused())) return;
-      if (document.activeElement === serialInput) return;
+      if (!isPaste || isInEditableField()) return;
+      if (!activeEmulator()) return;
       e.preventDefault();
-      navigator.clipboard
-        .readText()
-        .then(text => {
-          if (text && handlePaste(text)) {
-            setStatus("Pasted to VM.", "ok");
-          }
-        })
-        .catch(() => {
-          setStatus("Paste failed. Try clicking VM first or check clipboard permission.", "warn");
-        });
+      doPaste();
     },
     true
   );
@@ -972,7 +995,8 @@ function bindUi(emulator, prefs) {
     "paste",
     e => {
       if (document.activeElement === serialInput) return;
-      if (!isVmDisplayFocused() && !isSerialConsoleFocused()) return;
+      if (isInEditableField()) return;
+      if (!activeEmulator()) return;
       const text = e.clipboardData?.getData?.("text/plain");
       if (text && handlePaste(text)) {
         e.preventDefault();

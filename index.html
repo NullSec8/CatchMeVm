@@ -378,12 +378,14 @@
         </div>
         <ul id="snapshotList" class="snapshot-list"></ul>
       </details>
-      <div id="screen_container">
-        <div tabindex="0"></div>
-        <canvas tabindex="0"></canvas>
+      <div id="screen_container" tabindex="0" role="application" aria-label="VM display">
+        <div></div>
+        <canvas></canvas>
       </div>
       <div class="row">
         <button id="focusVmBtn">Focus VM</button>
+        <button id="pasteBtn" type="button">Paste</button>
+        <button id="copySerialBtn" type="button">Copy serial</button>
       </div>
       <details id="serialDetails">
         <summary>Serial console</summary>
@@ -399,7 +401,7 @@
           <button id="serial_ctrl_c_btn">Ctrl+C</button>
         </div>
       </details>
-      <p class="hint">Click VM to type. Ctrl+V to paste. Network: HTTP/HTTPS only (curl, wget). VM IP 192.168.86.100 is virtual—not reachable from your LAN.</p>
+      <p class="hint">Click VM to type. Use <strong>Paste</strong> button or Ctrl+V. Select text in serial, then Copy serial or Ctrl+C. Network: HTTP/HTTPS only.</p>
     </section>
 
     <aside class="panel">
@@ -435,8 +437,8 @@
       <h3>Keyboard shortcuts</h3>
       <table>
         <tr><td>Focus VM</td><td><code>Click VM</code> or Focus VM button</td></tr>
-        <tr><td>Paste into VM</td><td><code>Ctrl+V</code> (or <code>Cmd+V</code>)</td></tr>
-        <tr><td>Copy from serial</td><td>Select text, then <code>Ctrl+C</code></td></tr>
+        <tr><td>Paste into VM</td><td><code>Paste</code> button or <code>Ctrl+V</code></td></tr>
+        <tr><td>Copy from serial</td><td>Select text, then <code>Copy serial</code> or <code>Ctrl+C</code></td></tr>
         <tr><td>Send Ctrl+C to VM</td><td>Focus serial, click Ctrl+C button</td></tr>
         <tr><td>Fullscreen</td><td>Fullscreen button or <code>F11</code></td></tr>
         <tr><td>Exit fullscreen</td><td><code>Esc</code></td></tr>
