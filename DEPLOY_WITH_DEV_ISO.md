@@ -1,6 +1,6 @@
 # Deploy with full dev environment (Python, GCC, etc.)
 
-To get the full VM with dev tools on Vercel, include the dev ISO using Git LFS:
+If the VM hangs at "Booting from DVD/CD..." on Vercel, the dev ISO isn't loading. Use **GitHub Releases** (most reliable):
 
 ## 1. Build the dev ISO locally
 
@@ -10,38 +10,21 @@ python scripts/remaster_tinycore_dev_iso.py
 
 Requires: Docker, `assets/v86/TinyCore-11.0.iso`
 
-## 2. Install Git LFS
+## 2. Create a GitHub Release and upload the ISO
 
-**Windows (scoop):**
-```powershell
-scoop install git-lfs
-```
+1. Go to https://github.com/NullSec8/CatchMeVm/releases
+2. Click **Draft a new release**
+3. Tag: `v1.0` (or update `TINYCORE_DEV_ISO_RELEASE` in main.js if you use a different tag)
+4. Title: e.g. `v1.0`
+5. Click **Attach binaries** and upload `assets/v86/TinyCore-11.0-dev.iso`
+6. Click **Publish release**
 
-**Windows (installer):** Download from https://git-lfs.github.com/
+The app will automatically use this URL when the bundled asset is too small (LFS pointer).
 
-**Or via Git:**
-```bash
-git lfs install
-```
+## Alternative: Git LFS + Vercel
 
-## 3. Add and push the dev ISO
+1. Enable **Include Git LFS files** in Vercel → Settings → Git
+2. Ensure the ISO is pushed via LFS
+3. Redeploy
 
-```bash
-cd catchmevm-app
-git lfs track "assets/v86/TinyCore-11.0-dev.iso"
-git add .gitattributes assets/v86/TinyCore-11.0-dev.iso
-git commit -m "Add dev ISO via LFS for full VM on Vercel"
-git push
-```
-
-## 4. Enable Git LFS in Vercel (required)
-
-1. Open your project on [vercel.com](https://vercel.com)
-2. Go to **Settings** → **Git**
-3. Enable **Include Git LFS files**
-
-Without this, Vercel serves LFS pointer files (~130 bytes) instead of the real ISO, and the VM will hang at "Booting from DVD/CD...".
-
-## 5. Redeploy on Vercel
-
-Trigger a new deployment (or push a commit). The dev ISO (~130MB) will be fetched via LFS during the build.
+If the VM still won't boot, use the GitHub Releases method above.

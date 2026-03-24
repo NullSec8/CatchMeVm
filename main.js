@@ -7,11 +7,24 @@ const PREF_BOOT_MODE = "catchmevm.bootMode";
 const PREF_QUALITY = "catchmevm.quality";
 const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
 const TINYCORE_BASE_ISO = "./assets/v86/TinyCore-11.0.iso";
+// Fallback when LFS pointer is served instead of real file (Vercel). Create a release and upload the ISO.
+const TINYCORE_DEV_ISO_RELEASE = "https://github.com/NullSec8/CatchMeVm/releases/download/v1.0/TinyCore-11.0-dev.iso";
+const MIN_ISO_SIZE = 50 * 1024 * 1024; // 50 MB - real ISO is ~132 MB, LFS pointer is ~130 bytes
 
 async function getIsoUrl() {
   try {
     const r = await fetch(TINYCORE_DEV_ISO, { method: "HEAD" });
-    if (r.ok) return TINYCORE_DEV_ISO;
+    if (r.ok) {
+      const size = parseInt(r.headers.get("content-length") || "0", 10);
+      if (size >= MIN_ISO_SIZE) return TINYCORE_DEV_ISO;
+    }
+  } catch (_e) {}
+  try {
+    const r = await fetch(TINYCORE_DEV_ISO_RELEASE, { method: "HEAD" });
+    if (r.ok) {
+      const size = parseInt(r.headers.get("content-length") || "0", 10);
+      if (size >= MIN_ISO_SIZE) return TINYCORE_DEV_ISO_RELEASE;
+    }
   } catch (_e) {}
   return TINYCORE_BASE_ISO;
 }
