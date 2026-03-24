@@ -6,6 +6,16 @@ const STORE_SNAPSHOTS = "snapshots";
 const PREF_BOOT_MODE = "catchmevm.bootMode";
 const PREF_QUALITY = "catchmevm.quality";
 const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
+const TINYCORE_BASE_ISO = "./assets/v86/TinyCore-11.0.iso";
+
+async function getIsoUrl() {
+  try {
+    const r = await fetch(TINYCORE_DEV_ISO, { method: "HEAD" });
+    if (r.ok) return TINYCORE_DEV_ISO;
+  } catch (_e) {}
+  return TINYCORE_BASE_ISO;
+}
+
 let currentEmulator = null;
 let currentMode = "gui";
 let uiBound = false;
@@ -319,7 +329,12 @@ async function startVm({ mode, quality, initialState = null }) {
     }
   };
 
-  config.cdrom = { url: TINYCORE_DEV_ISO };
+  const isoUrl = await getIsoUrl();
+  const usingBaseIso = isoUrl === TINYCORE_BASE_ISO;
+  if (usingBaseIso) {
+    setStatus("Using base TinyCore (dev ISO not found). Build dev ISO locally for Python, GCC.", "warn");
+  }
+  config.cdrom = { url: isoUrl };
   config.boot_order = 0x132;
   if (initialState) {
     config.initial_state = {
@@ -399,10 +414,11 @@ async function startVm({ mode, quality, initialState = null }) {
       }
       appendSerial("\n[serial] VM is ready.\n");
       setBootStep(3, "done");
+      const devNote = usingBaseIso ? " (base ISO—run remaster script locally for Python, GCC)" : "";
       setStatus(
         mode === "terminal"
-          ? "Terminal ready. Python, GCC, etc. Same dev env as GUI. Files in /tmp."
-          : "GUI ready. Python, GCC, etc. Same dev env as terminal. Files in /tmp.",
+          ? `Terminal ready${devNote}. Files in /tmp.`
+          : `GUI ready${devNote}. Files in /tmp.`,
         "ok"
       );
       renderSnapshotList();
