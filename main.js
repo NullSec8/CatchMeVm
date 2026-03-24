@@ -13,6 +13,7 @@ const TINYCORE_BASE_ISO = "./assets/v86/TinyCore-11.0.iso";
 // Proxy bypasses Vercel 100MB limit + CORS. Requires GitHub Release v1.0 with dev ISO.
 const TINYCORE_DEV_ISO_PROXY = "/api/iso";
 const ARCH_LINUX_ISO_PROXY = "/api/arch-iso";
+const ARCH_ASSET_PROXY = "/api/arch-asset";
 const GITHUB_ZIP_PROXY = "/api/github-zip";
 const TINYCORE_DEV_ISO_RELEASE = "https://github.com/NullSec8/CatchMeVm/releases/download/v1.0/TinyCore-11.0-dev.iso";
 const ARCH_LINUX_ISO_STABLE = "https://archive.archlinux.org/iso/2025.02.01/archlinux-2025.02.01-x86_64.iso";
@@ -32,6 +33,33 @@ async function probeIsoUrl(url, minSize = MIN_ISO_SIZE) {
   } catch (_e) {
     return null;
   }
+}
+
+function withArchProxy(path) {
+  return `${ARCH_ASSET_PROXY}?path=${encodeURIComponent(path)}`;
+}
+
+async function getArchAssetConfig() {
+  const stateProxy = withArchProxy("arch_state-v3.bin.zst");
+  const fsProxy = withArchProxy("fs.json");
+  const baseProxy = `${ARCH_ASSET_PROXY}?path=arch/`;
+  const proxyAvailable = await probeIsoUrl(stateProxy, 1);
+
+  if (proxyAvailable) {
+    return {
+      baseurl: baseProxy,
+      basefs: fsProxy,
+      state: stateProxy,
+      source: "proxy",
+    };
+  }
+
+  return {
+    baseurl: ARCH_FS_BASEURL,
+    basefs: ARCH_FS_INDEX,
+    state: ARCH_STATE_URL,
+    source: "direct",
+  };
 }
 
 async function getIsoUrl(distro) {
@@ -465,13 +493,14 @@ async function startVm({ distro, mode, quality, initialState = null }) {
 
   let usingBaseIso = false;
   if (distro === DISTRO_ARCH) {
+    const archAssets = await getArchAssetConfig();
     // Use the upstream v86 Arch profile (state + 9p filesystem), which is far
     // more reliable in-browser than booting modern Arch live ISOs.
     config.memory_size = 512 * 1024 * 1024;
     config.vga_memory_size = 8 * 1024 * 1024;
     config.filesystem = {
-      baseurl: ARCH_FS_BASEURL,
-      basefs: { url: ARCH_FS_INDEX }
+      baseurl: archAssets.baseurl,
+      basefs: { url: archAssets.basefs }
     };
     config.bzimage_initrd_from_filesystem = true;
     config.cmdline = [
@@ -498,7 +527,7 @@ async function startVm({ distro, mode, quality, initialState = null }) {
         }
       };
     } else {
-      config.initial_state = { url: ARCH_STATE_URL };
+      config.initial_state = { url: archAssets.state };
     }
   } else {
     const isoInfo = await getIsoUrl(distro);
@@ -584,8 +613,12 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     }
   });
   addListener("download-error", e => {
-    const msg = e && e.message ? e.message : "Unknown download failure.";
-    setStatus(`Asset download failed: ${msg}`, "err");
+    const msg =
+      (e && e.message) ||
+      (e && e.statusText) ||
+      (typeof e === "string" ? e : JSON.stringify(e || {})) ||
+      "Unknown download failure.";
+    setStatus(`Asset download failed: ${msg}. Try reboot once, then switch distro if it persists.`, "err");
   });
 
   addListener("emulator-ready", async () => {
