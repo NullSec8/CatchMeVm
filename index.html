@@ -393,6 +393,7 @@
           <span class="vm-ip-hint">VM IP: 192.168.86.100</span>
           <button id="showIpBtn" type="button">Show IP in VM</button>
           <button id="testNetworkBtn" type="button">Test network</button>
+          <button id="vmStatsBtn" type="button">VM stats</button>
         </div>
         <div id="serial_console">[serial] waiting for boot output...</div>
         <div class="serial-controls">
@@ -432,6 +433,14 @@
     </aside>
   </div>
 
+  <div id="statsModal" class="shortcuts-modal" role="dialog" aria-label="VM stats">
+    <div class="shortcuts-content">
+      <h3>VM resources</h3>
+      <pre id="statsContent" style="margin:12px 0;padding:12px;background:#0a0d12;border-radius:8px;font-size:0.85rem;overflow:auto;max-height:240px;white-space:pre-wrap;"></pre>
+      <button id="statsCloseBtn" class="shortcuts-close">Close</button>
+    </div>
+  </div>
+
   <div id="shortcutsModal" class="shortcuts-modal" role="dialog" aria-label="Keyboard shortcuts">
     <div class="shortcuts-content">
       <h3>Keyboard shortcuts</h3>
@@ -440,6 +449,7 @@
         <tr><td>Paste into VM</td><td><code>Paste</code> button or <code>Ctrl+V</code></td></tr>
         <tr><td>Copy from serial</td><td>Select text, then <code>Copy serial</code> or <code>Ctrl+C</code></td></tr>
         <tr><td>Send Ctrl+C to VM</td><td>Focus serial, click Ctrl+C button</td></tr>
+        <tr><td>VM stats</td><td><code>VM stats</code> button</td></tr>
         <tr><td>Fullscreen</td><td>Fullscreen button or <code>F11</code></td></tr>
         <tr><td>Exit fullscreen</td><td><code>Esc</code></td></tr>
       </table>

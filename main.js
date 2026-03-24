@@ -40,6 +40,8 @@ async function getIsoUrl() {
 let currentEmulator = null;
 let currentMode = "gui";
 let uiBound = false;
+let lastVmMemoryMb = 0;
+let serialStatsCapture = null;
 
 function setStatus(message, level = "info") {
   const el = document.getElementById("status");
@@ -376,6 +378,7 @@ async function startVm({ mode, quality, initialState = null }) {
   const emulator = new VMConstructor(config);
   currentEmulator = emulator;
   currentMode = mode;
+  lastVmMemoryMb = Math.round(config.memory_size / (1024 * 1024));
   setStatus(mode === "terminal" ? "VM created. Booting terminal mode..." : "VM created. Booting GUI mode...");
 
   const bootProgressEl = document.getElementById("bootProgress");
@@ -410,6 +413,16 @@ async function startVm({ mode, quality, initialState = null }) {
       serialEl.textContent = "";
     }
     appendSerial(ch === "\r" ? "" : ch);
+    if (serialStatsCapture) {
+      serialStatsCapture.buffer += ch;
+      if (serialStatsCapture.buffer.includes(serialStatsCapture.endMarker)) {
+        const raw = serialStatsCapture.buffer;
+        const match = raw.match(/===VMSTATS===\s*([\s\S]*?)===VMSTATS_END===/);
+        const result = match ? match[1].trim() : raw;
+        serialStatsCapture.resolve(result);
+        serialStatsCapture = null;
+      }
+    }
   });
   addListener("download-progress", e => {
     if (e && typeof e.loaded === "number" && typeof e.total === "number" && e.total > 0) {
@@ -700,6 +713,53 @@ function bindUi(emulator, prefs) {
     });
   }
 
+  const vmStatsBtn = document.getElementById("vmStatsBtn");
+  const statsModal = document.getElementById("statsModal");
+  const statsContent = document.getElementById("statsContent");
+  const statsCloseBtn = document.getElementById("statsCloseBtn");
+  if (vmStatsBtn && statsModal && statsContent) {
+    vmStatsBtn.addEventListener("click", async () => {
+      const emu = activeEmulator();
+      if (!emu || typeof emu.serial0_send !== "function") {
+        setStatus("VM not ready.", "warn");
+        return;
+      }
+      let header = `Emulated RAM: ${lastVmMemoryMb} MB\n`;
+      if (typeof performance !== "undefined" && performance.memory) {
+        const used = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+        const total = Math.round(performance.memory.totalJSHeapSize / 1024 / 1024);
+        header += `Browser heap: ${used} MB / ${total} MB\n`;
+      }
+      header += "--- VM (free, loadavg) ---\n";
+      statsContent.textContent = header + "Querying VM...";
+      statsModal.classList.add("open");
+      const cmd = "echo '===VMSTATS==='; free -h 2>/dev/null || true; cat /proc/loadavg 2>/dev/null || true; echo '===VMSTATS_END==='\n";
+      const vmPromise = new Promise((resolve) => {
+        serialStatsCapture = { buffer: "", endMarker: "===VMSTATS_END===", resolve };
+      });
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout")), 5000)
+      );
+      try {
+        sendSerial(cmd);
+        const vmOut = await Promise.race([vmPromise, timeout]);
+        statsContent.textContent = header + (vmOut || "(no output)");
+      } catch (e) {
+        statsContent.textContent = header + `(VM did not respond: ${e.message})`;
+      } finally {
+        serialStatsCapture = null;
+      }
+    });
+  }
+  if (statsCloseBtn && statsModal) {
+    statsCloseBtn.addEventListener("click", () => statsModal.classList.remove("open"));
+  }
+  if (statsModal) {
+    statsModal.addEventListener("click", (e) => {
+      if (e.target === statsModal) statsModal.classList.remove("open");
+    });
+  }
+
   const shortcutsBtn = document.getElementById("shortcutsBtn");
   const shortcutsModal = document.getElementById("shortcutsModal");
   const shortcutsCloseBtn = document.getElementById("shortcutsCloseBtn");
@@ -907,7 +967,20 @@ function bindUi(emulator, prefs) {
     return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
   }
 
-  const PASTE_DELAY_MS = 12;
+  const PASTE_DELAY_MS = 3;
+  const PASTE_LINE_DELAY_MS = 25;
+
+  function toUtf8Bytes(str) {
+    return new Uint8Array(new TextEncoder().encode(str));
+  }
+
+  function sendUtf8ToSerial(bytes) {
+    const emu = activeEmulator();
+    if (!emu || typeof emu.serial0_send !== "function") return;
+    for (let i = 0; i < bytes.length; i++) {
+      emu.serial0_send(String.fromCharCode(bytes[i]));
+    }
+  }
 
   function sendPasteToVm(text) {
     const emu = activeEmulator();
@@ -917,29 +990,34 @@ function bindUi(emulator, prefs) {
       return true;
     }
     if (typeof emu.serial0_send === "function") {
-      emu.serial0_send(text + "\n");
+      sendSerialPaste(text);
       return true;
     }
     return false;
   }
 
-  function sendSerialThrottled(text, delayMs = PASTE_DELAY_MS) {
+  function sendSerialPaste(text) {
     const emu = activeEmulator();
     if (!emu || typeof emu.serial0_send !== "function") return;
-    let i = 0;
-    function sendNext() {
-      if (i < text.length) {
-        emu.serial0_send(text[i]);
-        i++;
-        setTimeout(sendNext, delayMs);
+    const lines = text.split(/\r?\n/);
+    let idx = 0;
+    function sendNextLine() {
+      if (idx >= lines.length) return;
+      const line = lines[idx];
+      const addNewline = idx < lines.length - 1 || (idx === lines.length - 1 && line === "" && text.endsWith("\n"));
+      const chunk = addNewline ? line + "\n" : line;
+      if (chunk) {
+        sendUtf8ToSerial(toUtf8Bytes(chunk));
       }
+      idx++;
+      if (idx < lines.length) setTimeout(sendNextLine, PASTE_LINE_DELAY_MS);
     }
-    sendNext();
+    sendNextLine();
   }
 
   function handlePaste(text) {
     if (currentMode === "terminal" || isSerialConsoleFocused()) {
-      sendSerialThrottled(text + "\n");
+      sendSerialPaste(text);
       return true;
     }
     return sendPasteToVm(text);
