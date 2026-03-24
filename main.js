@@ -342,13 +342,33 @@ async function startVm({ mode, quality, initialState = null }) {
   currentMode = mode;
   setStatus(mode === "terminal" ? "VM created. Booting terminal mode..." : "VM created. Booting GUI mode...");
 
+  const bootProgressEl = document.getElementById("bootProgress");
+  function setBootStep(step, state) {
+    const el = document.getElementById(`bootStep${step}`);
+    if (el) {
+      el.classList.remove("active", "done");
+      if (state === "active") el.classList.add("active");
+      if (state === "done") el.classList.add("done");
+    }
+  }
+  if (bootProgressEl) {
+    bootProgressEl.style.display = initialState ? "none" : "flex";
+    if (!initialState) setBootStep(1, "active");
+  }
+
   const addListener = (eventName, handler) => {
     if (typeof emulator.add_listener === "function") {
       emulator.add_listener(eventName, handler);
     }
   };
 
+  let bootStep2Set = false;
   addListener("serial0-output-byte", byte => {
+    if (!bootStep2Set) {
+      setBootStep(1, "done");
+      setBootStep(2, "active");
+      bootStep2Set = true;
+    }
     const ch = String.fromCharCode(byte);
     if (serialEl && serialEl.textContent.startsWith("[serial] waiting")) {
       serialEl.textContent = "";
@@ -359,6 +379,7 @@ async function startVm({ mode, quality, initialState = null }) {
     if (e && typeof e.loaded === "number" && typeof e.total === "number" && e.total > 0) {
       const pct = Math.round((e.loaded / e.total) * 100);
       setStatus(`Downloading VM assets... ${pct}%`);
+      setBootStep(1, "active");
     }
   });
   addListener("download-error", e => {
@@ -367,6 +388,9 @@ async function startVm({ mode, quality, initialState = null }) {
   });
 
   addListener("emulator-ready", async () => {
+    setBootStep(1, "done");
+    setBootStep(2, "done");
+    setBootStep(3, "active");
     try {
       assertFsApi(emulator);
       await restoreIntoVm(emulator);
@@ -374,6 +398,7 @@ async function startVm({ mode, quality, initialState = null }) {
         emulator.screen_set_scale(quality, quality);
       }
       appendSerial("\n[serial] VM is ready.\n");
+      setBootStep(3, "done");
       setStatus(
         mode === "terminal"
           ? "Terminal ready. Python, GCC, etc. Same dev env as GUI. Files in /tmp."
@@ -627,6 +652,29 @@ function bindUi(emulator, prefs) {
     showIpBtn.addEventListener("click", () => {
       sendSerial("ifconfig -a 2>/dev/null || ip addr show\n");
       setStatus("Sent ifconfig to VM. Check serial output.", "ok");
+    });
+  }
+
+  const testNetworkBtn = document.getElementById("testNetworkBtn");
+  if (testNetworkBtn) {
+    testNetworkBtn.addEventListener("click", () => {
+      sendSerial("curl -s -o /dev/null -w 'HTTP %{http_code}\\n' https://example.com\n");
+      setStatus("Sent network test. Check serial console (expect HTTP 200).", "ok");
+    });
+  }
+
+  const shortcutsBtn = document.getElementById("shortcutsBtn");
+  const shortcutsModal = document.getElementById("shortcutsModal");
+  const shortcutsCloseBtn = document.getElementById("shortcutsCloseBtn");
+  if (shortcutsBtn && shortcutsModal) {
+    shortcutsBtn.addEventListener("click", () => shortcutsModal.classList.add("open"));
+  }
+  if (shortcutsCloseBtn && shortcutsModal) {
+    shortcutsCloseBtn.addEventListener("click", () => shortcutsModal.classList.remove("open"));
+  }
+  if (shortcutsModal) {
+    shortcutsModal.addEventListener("click", (e) => {
+      if (e.target === shortcutsModal) shortcutsModal.classList.remove("open");
     });
   }
 

@@ -33,6 +33,12 @@ Requires: Docker, `assets/v86/TinyCore-11.0.iso` (source ISO)
 - **Network**: Fetch relay supports HTTP/HTTPS only. No SSH, no raw TCP to other machines.
 - **VM IP (192.168.86.100)**: Virtual only; not reachable from your LAN.
 
+## Live Demo / Deploy
+
+**Vercel:** Connect the repo to [Vercel](https://vercel.com); it will serve the static files. Ensure `TinyCore-11.0-dev.iso` exists in `assets/v86/` (the dev ISO is large; build via remaster script or host elsewhere).
+
+**GitHub Pages:** Enable Pages in repo Settings → Pages → Deploy from branch, select the branch and `/` (root).
+
 ## Scripts
 
 | Script | Purpose |

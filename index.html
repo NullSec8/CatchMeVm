@@ -297,6 +297,45 @@
     .snapshot-list li span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
     .snapshot-list .snapshot-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
+    .boot-progress {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .boot-step { opacity: 0.4; }
+    .boot-step.active { opacity: 1; color: var(--accent); }
+    .boot-step.done { opacity: 1; color: var(--ok); }
+    .boot-arrow { opacity: 0.4; }
+
+    .shortcuts-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .shortcuts-modal.open { display: flex; }
+    .shortcuts-content {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      max-width: 400px;
+      width: 100%;
+    }
+    .shortcuts-content h3 { margin: 0 0 12px; font-size: 1rem; }
+    .shortcuts-content table { width: 100%; font-size: 0.85rem; }
+    .shortcuts-content td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    .shortcuts-content td:last-child { color: var(--muted); }
+    .shortcuts-content code { font-size: 0.8rem; }
+    .shortcuts-close { margin-top: 12px; width: 100%; }
+
     code { color: var(--accent); font-family: "JetBrains Mono", monospace; }
   </style>
 </head>
@@ -322,6 +361,14 @@
         </label>
         <button id="rebootBtn">Apply & Reboot</button>
         <button id="fullscreenBtn">Fullscreen</button>
+        <button id="shortcutsBtn">Shortcuts</button>
+      </div>
+      <div id="bootProgress" class="boot-progress" aria-hidden="true">
+        <span id="bootStep1" class="boot-step">Download</span>
+        <span class="boot-arrow">→</span>
+        <span id="bootStep2" class="boot-step">Boot</span>
+        <span class="boot-arrow">→</span>
+        <span id="bootStep3" class="boot-step">Ready</span>
       </div>
       <details class="snapshots-panel" style="margin-bottom:12px;">
         <summary>Snapshots</summary>
@@ -343,6 +390,7 @@
         <div class="serial-controls" style="margin-bottom:6px;">
           <span class="vm-ip-hint">VM IP: 192.168.86.100</span>
           <button id="showIpBtn" type="button">Show IP in VM</button>
+          <button id="testNetworkBtn" type="button">Test network</button>
         </div>
         <div id="serial_console">[serial] waiting for boot output...</div>
         <div class="serial-controls">
@@ -351,7 +399,7 @@
           <button id="serial_ctrl_c_btn">Ctrl+C</button>
         </div>
       </details>
-      <p class="hint">Click VM to type. Ctrl+V to paste. VM IP: 192.168.86.100. SSH included.</p>
+      <p class="hint">Click VM to type. Ctrl+V to paste. Network: HTTP/HTTPS only (curl, wget). VM IP 192.168.86.100 is virtual—not reachable from your LAN.</p>
     </section>
 
     <aside class="panel">
@@ -380,6 +428,21 @@
         <tbody id="rows"></tbody>
       </table>
     </aside>
+  </div>
+
+  <div id="shortcutsModal" class="shortcuts-modal" role="dialog" aria-label="Keyboard shortcuts">
+    <div class="shortcuts-content">
+      <h3>Keyboard shortcuts</h3>
+      <table>
+        <tr><td>Focus VM</td><td><code>Click VM</code> or Focus VM button</td></tr>
+        <tr><td>Paste into VM</td><td><code>Ctrl+V</code> (or <code>Cmd+V</code>)</td></tr>
+        <tr><td>Copy from serial</td><td>Select text, then <code>Ctrl+C</code></td></tr>
+        <tr><td>Send Ctrl+C to VM</td><td>Focus serial, click Ctrl+C button</td></tr>
+        <tr><td>Fullscreen</td><td>Fullscreen button or <code>F11</code></td></tr>
+        <tr><td>Exit fullscreen</td><td><code>Esc</code></td></tr>
+      </table>
+      <button id="shortcutsCloseBtn" class="shortcuts-close">Close</button>
+    </div>
   </div>
 
   <script src="./assets/v86/libv86.js"></script>
