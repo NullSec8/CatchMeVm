@@ -17,6 +17,9 @@ const GITHUB_ZIP_PROXY = "/api/github-zip";
 const TINYCORE_DEV_ISO_RELEASE = "https://github.com/NullSec8/CatchMeVm/releases/download/v1.0/TinyCore-11.0-dev.iso";
 const ARCH_LINUX_ISO_STABLE = "https://archive.archlinux.org/iso/2025.02.01/archlinux-2025.02.01-x86_64.iso";
 const ARCH_LINUX_ISO_LATEST = "https://geo.mirror.pkgbuild.com/iso/latest/archlinux-x86_64.iso";
+const ARCH_FS_BASEURL = "https://i.copy.sh/arch/";
+const ARCH_FS_INDEX = "https://i.copy.sh/fs.json";
+const ARCH_STATE_URL = "https://i.copy.sh/arch_state-v3.bin.zst";
 const MIN_ISO_SIZE = 50 * 1024 * 1024; // 50 MB - real ISO is ~132 MB, LFS pointer is ~130 bytes
 
 async function probeIsoUrl(url, minSize = MIN_ISO_SIZE) {
@@ -460,27 +463,66 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     }
   };
 
-  const isoInfo = await getIsoUrl(distro);
-  const usingBaseIso = isoInfo.source === "tinycore-base";
-  if (usingBaseIso && distro !== DISTRO_ARCH) {
-    setStatus("Using base TinyCore (dev ISO not found). Create GitHub Release v1.0 with TinyCore-11.0-dev.iso.", "warn");
-  }
-  config.cdrom = { url: isoInfo.url };
-  config.boot_order = 0x132;
-  if (initialState) {
-    config.initial_state = {
-      buffer: initialState,
-      load: function() {
-        const self = this;
-        setTimeout(() => { if (self.onload) self.onload(); }, 0);
-      }
+  let usingBaseIso = false;
+  if (distro === DISTRO_ARCH) {
+    // Use the upstream v86 Arch profile (state + 9p filesystem), which is far
+    // more reliable in-browser than booting modern Arch live ISOs.
+    config.memory_size = 512 * 1024 * 1024;
+    config.vga_memory_size = 8 * 1024 * 1024;
+    config.filesystem = {
+      baseurl: ARCH_FS_BASEURL,
+      basefs: { url: ARCH_FS_INDEX }
     };
-  }
-  if (mode === "terminal") {
-    config.cmdline = "console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on text superuser";
-    config.memory_size = distro === DISTRO_ARCH ? 1024 * 1024 * 1024 : 512 * 1024 * 1024;
+    config.bzimage_initrd_from_filesystem = true;
+    config.cmdline = [
+      "rw apm=off vga=0x344 video=vesafb:ypan,vremap:8",
+      "root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose",
+      "mitigations=off audit=0",
+      "init_on_free=on",
+      "tsc=reliable",
+      "random.trust_cpu=on",
+      "nowatchdog",
+      "init=/usr/bin/init-openrc net.ifnames=0 biosdevname=0"
+    ].join(" ");
+    config.net_device = {
+      type: "virtio",
+      relay_url: "fetch"
+    };
+
+    if (initialState) {
+      config.initial_state = {
+        buffer: initialState,
+        load: function() {
+          const self = this;
+          setTimeout(() => { if (self.onload) self.onload(); }, 0);
+        }
+      };
+    } else {
+      config.initial_state = { url: ARCH_STATE_URL };
+    }
   } else {
-    config.cmdline = "console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on";
+    const isoInfo = await getIsoUrl(distro);
+    usingBaseIso = isoInfo.source === "tinycore-base";
+    if (usingBaseIso) {
+      setStatus("Using base TinyCore (dev ISO not found). Create GitHub Release v1.0 with TinyCore-11.0-dev.iso.", "warn");
+    }
+    config.cdrom = { url: isoInfo.url };
+    config.boot_order = 0x132;
+    if (initialState) {
+      config.initial_state = {
+        buffer: initialState,
+        load: function() {
+          const self = this;
+          setTimeout(() => { if (self.onload) self.onload(); }, 0);
+        }
+      };
+    }
+    if (mode === "terminal") {
+      config.cmdline = "console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on text superuser";
+      config.memory_size = 512 * 1024 * 1024;
+    } else {
+      config.cmdline = "console=ttyS0 tsc=reliable mitigations=off random.trust_cpu=on";
+    }
   }
 
   const emulator = new VMConstructor(config);
