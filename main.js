@@ -504,9 +504,9 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     const archAssets = getArchAssetConfig();
     // Use the upstream v86 Arch profile (9p filesystem + bzImage/initrd), not
     // x86_64 live ISOs (wrong arch / unreliable in v86).
-    config.memory_size = 768 * 1024 * 1024;
+    // Match upstream v86 Arch profile sizing.
+    config.memory_size = 512 * 1024 * 1024;
     config.vga_memory_size = 8 * 1024 * 1024;
-    config.acpi = false;
     config.filesystem = {
       baseurl: archAssets.baseurl,
       basefs: { url: archAssets.basefs }
@@ -514,7 +514,6 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     config.bzimage_initrd_from_filesystem = true;
     config.cmdline = [
       "rw apm=off vga=0x344 video=vesafb:ypan,vremap:8",
-      "console=ttyS0",
       "root=host9p rootfstype=9p rootflags=trans=virtio,cache=loose",
       "mitigations=off audit=0",
       "init_on_free=on",
