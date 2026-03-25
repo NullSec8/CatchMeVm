@@ -6,6 +6,8 @@ const STORE_SNAPSHOTS = "snapshots";
 const PREF_DISTRO = "catchmevm.distro";
 const PREF_BOOT_MODE = "catchmevm.bootMode";
 const PREF_QUALITY = "catchmevm.quality";
+const PREF_FAST_START = "catchmevm.fastStart";
+const AUTO_SNAPSHOT_ID = "auto-latest";
 const DISTRO_TINYCORE = "tinycore";
 const DISTRO_ARCH = "arch";
 const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
@@ -430,6 +432,11 @@ function setBootPreferences(distro, mode, quality) {
   localStorage.setItem(PREF_QUALITY, String(quality));
 }
 
+function isFastStartEnabled() {
+  const v = localStorage.getItem(PREF_FAST_START);
+  return v === null ? true : String(v) !== "0";
+}
+
 function applyModeUi(mode) {
   const screen = document.getElementById("screen_container");
   const details = document.getElementById("serialDetails");
@@ -544,8 +551,11 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     if (usingBaseIso) {
       setStatus("Using base TinyCore (dev ISO not found). Create GitHub Release v1.0 with TinyCore-11.0-dev.iso.", "warn");
     }
-    config.cdrom = { url: isoInfo.url };
-    config.boot_order = 0x132;
+    // When restoring from a saved VM state we can skip loading the ISO entirely.
+    if (!initialState) {
+      config.cdrom = { url: isoInfo.url };
+      config.boot_order = 0x132;
+    }
     if (initialState) {
       config.initial_state = {
         buffer: initialState,
@@ -643,10 +653,11 @@ async function startVm({ distro, mode, quality, initialState = null }) {
     setBootStep(3, "active");
     try {
       assertFsApi(emulator);
-      // Arch root is a 9p tree from upstream; /tmp may not exist for host file
-      // injection until the guest creates it — skip restore for Arch to avoid
-      // spurious bridge failures.
-      if (distro !== DISTRO_ARCH) {
+      const restoringFromSnapshot = !!initialState;
+
+      // If we restored from a snapshot (auto fast-start), skip re-injecting
+      // files and network boot commands to reduce startup latency.
+      if (!restoringFromSnapshot && distro !== DISTRO_ARCH) {
         await restoreIntoVm(emulator);
       }
       if (typeof emulator.screen_set_scale === "function") {
@@ -676,6 +687,28 @@ async function startVm({ distro, mode, quality, initialState = null }) {
         "ok"
       );
       renderSnapshotList();
+
+      // Auto fast-start: save a booted state once so next page load can restore instantly.
+      if (!restoringFromSnapshot && isFastStartEnabled() && localStorage.getItem("catchmevm.autoSnapshotSaved") !== "1") {
+        setStatus("Saving auto fast-start snapshot (one time)...", "warn");
+        try {
+          const state = await emulator.save_state();
+          if (state && state instanceof ArrayBuffer) {
+            await idbSnapshotPut({
+              id: AUTO_SNAPSHOT_ID,
+              name: "Auto fast-start",
+              state,
+              distro,
+              mode: currentMode,
+              createdAt: Date.now(),
+            });
+            localStorage.setItem("catchmevm.autoSnapshotSaved", "1");
+          }
+        } catch (e) {
+          console.warn("Auto snapshot save failed:", e);
+        }
+        setStatus("Auto fast-start snapshot saved. Next visit should be instant.", "ok");
+      }
     } catch (error) {
       setStatus(`VM ready, but file bridge failed: ${error.message}`, "err");
     }
@@ -708,6 +741,7 @@ function bindUi(emulator, prefs) {
   const importGithubBtn = document.getElementById("importGithubBtn");
   const focusVmBtn = document.getElementById("focusVmBtn");
   const distroSelect = document.getElementById("distroSelect");
+  const fastStartToggle = document.getElementById("fastStartToggle");
   const bootModeSelect = document.getElementById("bootModeSelect");
   const qualitySelect = document.getElementById("qualitySelect");
   const rebootBtn = document.getElementById("rebootBtn");
@@ -715,6 +749,14 @@ function bindUi(emulator, prefs) {
   const screen = document.getElementById("screen_container");
 
   if (distroSelect) distroSelect.value = prefs.distro;
+  if (fastStartToggle) {
+    fastStartToggle.checked = isFastStartEnabled();
+    fastStartToggle.addEventListener("change", () => {
+      localStorage.setItem(PREF_FAST_START, fastStartToggle.checked ? "1" : "0");
+      localStorage.removeItem("catchmevm.autoSnapshotSaved");
+      setStatus(fastStartToggle.checked ? "Fast start enabled. Reload page to apply." : "Fast start disabled.", "ok");
+    });
+  }
   if (bootModeSelect) bootModeSelect.value = prefs.mode;
   if (qualitySelect) qualitySelect.value = String(prefs.quality);
 
@@ -1362,6 +1404,20 @@ function bindUi(emulator, prefs) {
   }
 }
 
-startVm(getBootPreferences()).catch(error => {
-  setStatus(`Startup failed: ${error.message}`, "err");
-});
+(async () => {
+  try {
+    const prefs = getBootPreferences();
+    let initialState = null;
+
+    if (isFastStartEnabled()) {
+      const snap = await idbSnapshotGet(AUTO_SNAPSHOT_ID);
+      if (snap && snap.state) {
+        initialState = snap.state;
+      }
+    }
+
+    await startVm({ ...prefs, initialState });
+  } catch (error) {
+    setStatus(`Startup failed: ${error.message}`, "err");
+  }
+})();
