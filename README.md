@@ -1,14 +1,17 @@
 <div align="center">
-  <img src="https://img.shields.io/badge/status-active-00FF00?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/platform-browser-00FF00?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/license-MIT-00FF00?style=for-the-badge" />
-  <img src="https://img.shields.io/badge/build-v86-00FF00?style=for-the-badge" />
-  <br />
-  <h1>CatchMeVM</h1>
-  <p><strong>A full x86 virtual machine in your browser.</strong><br />
-  Boot TinyCore Linux, code in Python, compile with GCC, upload files — all without leaving the tab.<br />
-  No server, no install, no hassle.</p>
-  <a href="https://catch-me-vm.vercel.app"><img src="https://img.shields.io/badge/Try%20it%20live-00FF00?style=for-the-badge&logo=vercel&logoColor=black" /></a>
+  <img src="https://capsule-render.vercel.app/api?type=waving&height=200&color=0:0B1021,50:00BFFF,100:0B1021&text=CatchMeVM&reversal=false&fontColor=FFFFFF&fontSize=50&animation=fadeIn" width="100%" />
+  <br><br>
+  <img src="https://img.shields.io/badge/status-active-00BFFF?style=for-the-badge&logo=checkmarx&logoColor=white" />
+  <img src="https://img.shields.io/badge/platform-browser-00BFFF?style=for-the-badge&logo=googlechrome&logoColor=white" />
+  <img src="https://img.shields.io/badge/license-MIT-00BFFF?style=for-the-badge&logo=opensourceinitiative&logoColor=white" />
+  <img src="https://img.shields.io/badge/powered_by-v86-00BFFF?style=for-the-badge&logo=webassembly&logoColor=white" />
+  <br><br>
+  <p><strong>A full x86 virtual machine running in your browser.</strong><br>
+  Boot TinyCore Linux · Code in Python · Compile with GCC · Upload files<br>
+  <em>No server. No install. No hassle.</em></p>
+  <br>
+  <a href="https://catch-me-vm.vercel.app"><img src="https://img.shields.io/badge/Try%20it%20live-00BFFF?style=for-the-badge&logo=vercel&logoColor=white" /></a>
+  <a href="https://github.com/NullSec8/CatchMeVm"><img src="https://img.shields.io/badge/View%20on%20GitHub-0B1021?style=for-the-badge&logo=github&logoColor=00BFFF" /></a>
 </div>
 
 ---
@@ -37,10 +40,12 @@ Created by [NullSec8](https://github.com/NullSec8).
 
 ## Tech Stack
 
-- **v86** — x86 emulator compiled to WebAssembly
-- **TinyCore Linux** — minimal, fast-booting distro
-- **9p filesystem** — host-to-VM file sharing
-- **Vercel** — deployment with serverless ISO proxy
+<div align="center">
+  <img src="https://img.shields.io/badge/v86-WebAssembly-00BFFF?style=for-the-badge&logo=webassembly&logoColor=white" />
+  <img src="https://img.shields.io/badge/TinyCore_Linux-Minimal-00BFFF?style=for-the-badge&logo=linux&logoColor=white" />
+  <img src="https://img.shields.io/badge/9p_Filesystem-Shared-00BFFF?style=for-the-badge&logo=files&logoColor=white" />
+  <img src="https://img.shields.io/badge/Vercel-Serverless-00BFFF?style=for-the-badge&logo=vercel&logoColor=white" />
+</div>
 
 ---
 
@@ -64,7 +69,7 @@ Connect the repo to [Vercel](https://vercel.com). For full dev tools, create Git
 
 ### GitHub Pages
 
-Settings > Pages > Deploy from branch, select branch and / root.
+Settings > Pages > Deploy from branch, select branch and `/` root.
 
 ---
 
@@ -88,5 +93,5 @@ Settings > Pages > Deploy from branch, select branch and / root.
 ---
 
 <div align="center">
-  <sub>Made with by <a href="https://github.com/NullSec8">NullSec8</a></sub>
+  <img src="https://capsule-render.vercel.app/api?type=soft&height=100&color=0B1021&text=Made%20by%20NullSec8&fontColor=00BFFF&fontSize=24" width="100%" />
 </div>
