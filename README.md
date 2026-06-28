@@ -1,8 +1,15 @@
-# CatchMeVM
-
-**Try it live:** [https://catch-me-vm.vercel.app](https://catch-me-vm.vercel.app)
-
-A full x86 virtual machine running in your browser. Boot TinyCore Linux, code in Python, compile with GCC, and upload files — all without leaving the tab. No server, no install, no hassle.
+<div align="center">
+  <img src="https://img.shields.io/badge/status-active-00FF00?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/platform-browser-00FF00?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/license-MIT-00FF00?style=for-the-badge" />
+  <img src="https://img.shields.io/badge/build-v86-00FF00?style=for-the-badge" />
+  <br />
+  <h1>CatchMeVM</h1>
+  <p><strong>A full x86 virtual machine in your browser.</strong><br />
+  Boot TinyCore Linux, code in Python, compile with GCC, upload files — all without leaving the tab.<br />
+  No server, no install, no hassle.</p>
+  <a href="https://catch-me-vm.vercel.app"><img src="https://img.shields.io/badge/Try%20it%20live-00FF00?style=for-the-badge&logo=vercel&logoColor=black" /></a>
+</div>
 
 ---
 
@@ -26,6 +33,8 @@ Created by [NullSec8](https://github.com/NullSec8).
 | VM stats | View RAM, CPU, and browser heap usage |
 | Networking | HTTP/HTTPS via fetch relay (curl, wget) |
 
+---
+
 ## Tech Stack
 
 - **v86** — x86 emulator compiled to WebAssembly
@@ -33,15 +42,19 @@ Created by [NullSec8](https://github.com/NullSec8).
 - **9p filesystem** — host-to-VM file sharing
 - **Vercel** — deployment with serverless ISO proxy
 
+---
+
 ## Requirements
 
 Build the dev ISO:
 
-`ash
+```bash
 python scripts/remaster_tinycore_dev_iso.py
-`
+```
 
-Requires Docker and ssets/v86/TinyCore-11.0.iso.
+Requires Docker and `assets/v86/TinyCore-11.0.iso`.
+
+---
 
 ## Deployment
 
@@ -53,17 +66,27 @@ Connect the repo to [Vercel](https://vercel.com). For full dev tools, create Git
 
 Settings > Pages > Deploy from branch, select branch and / root.
 
+---
+
 ## Limitations
 
-- Network: HTTP/HTTPS only via fetch relay. No SSH, no raw TCP.
-- VM IP (192.168.86.100) is virtual; not reachable from your LAN.
+- **Network:** HTTP/HTTPS only via fetch relay. No SSH, no raw TCP.
+- **VM IP (192.168.86.100)** is virtual; not reachable from your LAN.
+
+---
 
 ## Scripts
 
 | Script | Purpose |
 |--------|---------|
-| emaster_tinycore_dev_iso.py | Build TinyCore-11.0-dev.iso with dev packages |
-| create-release.ps1 | Create GitHub Release v1.0 with dev ISO |
-| uild-9p-dev.ps1 | Build Alpine 9p rootfs (optional) |
-| uild-toolchain-tarball.ps1 | Build toolchain tarball (optional) |
-| uild-offline-dev-image.ps1 | Build offline initrd (optional) |
+| `remaster_tinycore_dev_iso.py` | Build TinyCore-11.0-dev.iso with dev packages |
+| `create-release.ps1` | Create GitHub Release v1.0 with dev ISO |
+| `build-9p-dev.ps1` | Build Alpine 9p rootfs (optional) |
+| `build-toolchain-tarball.ps1` | Build toolchain tarball (optional) |
+| `build-offline-dev-image.ps1` | Build offline initrd (optional) |
+
+---
+
+<div align="center">
+  <sub>Made with by <a href="https://github.com/NullSec8">NullSec8</a></sub>
+</div>
