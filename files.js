@@ -14,20 +14,32 @@ function migrateVmPath(vmPath, mode) {
   return vmPath;
 }
 
+function toUint8Array(data) {
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  if (Array.isArray(data)) return new Uint8Array(data);
+  return null;
+}
+
 export async function restoreIntoVm(emulator) {
   const saved = await idbGetAll();
   if (!saved.length) return 0;
   let restored = 0;
   for (const rec of saved) {
-    const bytes = rec.bytes instanceof Uint8Array ? rec.bytes : new Uint8Array(rec.bytes);
-    let vmPath = migrateVmPath(rec.vmPath, state.mode);
+    const bytes = toUint8Array(rec.bytes);
+    if (!bytes) {
+      console.warn("Skipping file with invalid data:", rec.vmPath);
+      continue;
+    }
+    const vmPath = migrateVmPath(rec.vmPath, state.mode);
     try {
       await emulator.create_file(vmPath, bytes);
-      const updated = { ...rec, vmPath };
+      const updated = { ...rec, vmPath, bytes };
       filesManifest.set(vmPath, updated);
       if (vmPath !== rec.vmPath) {
-        await idbDelete(rec.vmPath);
-        await idbPut(updated);
+        idbDelete(rec.vmPath).catch(() => {});
+        idbPut(updated).catch(() => {});
       }
       restored++;
     } catch (err) {

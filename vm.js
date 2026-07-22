@@ -59,18 +59,22 @@ function getArchAssetConfig() {
 
 async function getIsoUrl(distro) {
   if (distro === DISTRO_ARCH) {
-    const archProxy = await probeIsoUrl(ARCH_LINUX_ISO_PROXY, MIN_ISO_SIZE);
+    const [archProxy, archStable] = await Promise.all([
+      probeIsoUrl(ARCH_LINUX_ISO_PROXY, MIN_ISO_SIZE),
+      probeIsoUrl(ARCH_LINUX_ISO_STABLE, MIN_ISO_SIZE),
+    ]);
     if (archProxy) return { distro: DISTRO_ARCH, url: archProxy, source: "arch-proxy" };
-    const archStable = await probeIsoUrl(ARCH_LINUX_ISO_STABLE, MIN_ISO_SIZE);
     if (archStable) return { distro: DISTRO_ARCH, url: archStable, source: "arch-stable" };
-    const archLatest = await probeIsoUrl(ARCH_LINUX_ISO_LATEST, MIN_ISO_SIZE);
-    return { distro: DISTRO_ARCH, url: archLatest || ARCH_LINUX_ISO_LATEST, source: "arch-latest" };
+    return { distro: DISTRO_ARCH, url: ARCH_LINUX_ISO_LATEST, source: "arch-latest" };
   }
 
-  const localDev = await probeIsoUrl(TINYCORE_DEV_ISO, MIN_ISO_SIZE);
+  const [localDev, proxyDev] = await Promise.all([
+    probeIsoUrl(TINYCORE_DEV_ISO, MIN_ISO_SIZE),
+    probeIsoUrl(TINYCORE_DEV_ISO_PROXY, MIN_ISO_SIZE),
+  ]);
   if (localDev) return { distro: DISTRO_TINYCORE, url: localDev, source: "tinycore-local-dev" };
-  const proxyDev = await probeIsoUrl(TINYCORE_DEV_ISO_PROXY, MIN_ISO_SIZE);
   if (proxyDev) return { distro: DISTRO_TINYCORE, url: proxyDev, source: "tinycore-proxy-dev" };
+
   const releaseDev = await probeIsoUrl(TINYCORE_DEV_ISO_RELEASE, MIN_ISO_SIZE);
   if (releaseDev) return { distro: DISTRO_TINYCORE, url: releaseDev, source: "tinycore-release-dev" };
   return { distro: DISTRO_TINYCORE, url: TINYCORE_BASE_ISO, source: "tinycore-base" };
@@ -105,38 +109,39 @@ function applyModeUi(mode) {
   }
 }
 
-function appendSerial(text, serialEl, serialBufferRef) {
+function createSerialBuffer() {
+  return { buffer: "", scheduled: false };
+}
+
+function appendSerial(text, serialEl, buf) {
   if (!serialEl) return;
-  serialBufferRef.buffer += text;
-  if (!serialBufferRef.scheduled) {
-    serialBufferRef.scheduled = true;
-    requestAnimationFrame(() => {
-      serialBufferRef.scheduled = false;
-      if (!serialBufferRef.buffer) return;
-      const toAppend = serialBufferRef.buffer;
-      serialBufferRef.buffer = "";
-      if (serialEl.textContent.startsWith("[serial] waiting")) {
-        serialEl.textContent = "";
-      }
-      serialEl.textContent += toAppend;
-      if (serialEl.textContent.length > 120000) {
-        serialEl.textContent = serialEl.textContent.slice(-80000);
-      }
-      serialEl.scrollTop = serialEl.scrollHeight;
-    });
-  }
+  buf.buffer += text;
+  if (buf.scheduled) return;
+  buf.scheduled = true;
+  requestAnimationFrame(() => {
+    buf.scheduled = false;
+    if (!buf.buffer || !serialEl.isConnected) return;
+    const chunk = buf.buffer;
+    buf.buffer = "";
+    if (serialEl.textContent.startsWith("[serial] waiting")) {
+      serialEl.textContent = "";
+    }
+    serialEl.textContent += chunk;
+    if (serialEl.textContent.length > 120000) {
+      serialEl.textContent = serialEl.textContent.slice(-80000);
+    }
+    serialEl.scrollTop = serialEl.scrollHeight;
+  });
 }
 
 export async function startVm({ distro, mode, quality, initialState = null }) {
   setStatus(initialState ? "Restoring snapshot..." : "Booting CatchMeVM...");
-  const serialEl = document.getElementById("serial_console");
   applyModeUi(mode);
   initBootProgress(!initialState);
-  if (!initialState) {
-    hideBootSkeleton();
-  }
+  hideBootSkeleton();
 
-  const serialBufferRef = { buffer: "", scheduled: false };
+  const serialEl = document.getElementById("serial_console");
+  const buf = createSerialBuffer();
 
   const VMConstructor =
     (typeof window !== "undefined" && (window.V86Starter || window.V86)) ||
@@ -250,7 +255,7 @@ export async function startVm({ distro, mode, quality, initialState = null }) {
     if (serialEl && serialEl.textContent.startsWith("[serial] waiting")) {
       serialEl.textContent = "";
     }
-    appendSerial(ch === "\r" ? "" : ch, serialEl, serialBufferRef);
+    appendSerial(ch === "\r" ? "" : ch, serialEl, buf);
 
     if (state.serialStatsCapture) {
       state.serialStatsCapture.buffer += ch;
@@ -282,54 +287,52 @@ export async function startVm({ distro, mode, quality, initialState = null }) {
     setStatus(`Asset download failed:${http} ${msg}. Deploy must include /api (e.g. Vercel). Or switch to TinyCore.`, "err");
   });
 
-  addListener("emulator-ready", async () => {
+  addListener("emulator-ready", () => {
     setBootStep(1, "done");
     setBootStep(2, "done");
-    setBootStep(3, "active");
-    try {
-      if (typeof emulator.create_file !== "function") throw new Error("v86 file APIs missing.");
-      const restoringFromSnapshot = !!initialState;
+    setBootStep(3, "done");
+    appendSerial("\n[serial] VM is ready.\n", serialEl, buf);
+    const devNote = usingBaseIso ? " (base ISO)" : "";
+    const osNote = distro === DISTRO_ARCH ? " First Arch boot can take 1-5 minutes." : "";
+    setStatus(
+      mode === "terminal" ? `Terminal ready${devNote}${osNote}. Files in /tmp.` : `GUI ready${devNote}${osNote}. Files in /tmp.`,
+      "ok"
+    );
 
-      if (!restoringFromSnapshot && distro !== DISTRO_ARCH) {
-        const restored = await restoreIntoVm(emulator);
+    if (typeof emulator.screen_set_scale === "function") {
+      emulator.screen_set_scale(quality, quality);
+    }
+    if (typeof emulator.serial0_send === "function") {
+      if (distro === DISTRO_ARCH) {
+        emulator.serial0_send("dhcpcd -w4 eth0 2>/dev/null || dhcpcd -w4 enp0s5 2>/dev/null || true\n");
+      } else {
+        emulator.serial0_send("udhcpc -n -q -i eth0 || udhcpc -n -q -i ens3 || udhcpc -n -q -i enp0s3\n");
+      }
+    }
+
+    const restoringFromSnapshot = !!initialState;
+    if (!restoringFromSnapshot && distro !== DISTRO_ARCH) {
+      restoreIntoVm(emulator).then((restored) => {
         if (restored > 0) toast(`Restored ${restored} saved file(s).`, "ok");
-      }
-      if (typeof emulator.screen_set_scale === "function") {
-        emulator.screen_set_scale(quality, quality);
-      }
-      if (typeof emulator.serial0_send === "function") {
-        if (distro === DISTRO_ARCH) {
-          emulator.serial0_send("dhcpcd -w4 eth0 2>/dev/null || dhcpcd -w4 enp0s5 2>/dev/null || true\n");
-        } else {
-          emulator.serial0_send("udhcpc -n -q -i eth0 || udhcpc -n -q -i ens3 || udhcpc -n -q -i enp0s3\n");
-        }
-      }
-      appendSerial("\n[serial] VM is ready.\n", serialEl, serialBufferRef);
-      setBootStep(3, "done");
-      const devNote = usingBaseIso ? " (base ISO)" : "";
-      const osNote = distro === DISTRO_ARCH ? " First Arch boot can take 1-5 minutes." : "";
-      setStatus(
-        mode === "terminal" ? `Terminal ready${devNote}${osNote}. Files in /tmp.` : `GUI ready${devNote}${osNote}. Files in /tmp.`,
-        "ok"
-      );
-      renderSnapshotList();
+      }).catch((e) => console.warn("File restore failed:", e));
+    }
 
-      if (!restoringFromSnapshot) {
-        await saveAutoSnapshot(emulator, distro);
-      }
-    } catch (error) {
-      setStatus(`VM ready, but file bridge failed: ${error.message}`, "err");
+    renderSnapshotList().catch(() => {});
+
+    if (!restoringFromSnapshot) {
+      saveAutoSnapshot(emulator, distro).catch((e) => console.warn("Auto-snapshot save failed:", e));
     }
   });
 
+  const statusEl = document.getElementById("status");
   setTimeout(() => {
-    if (serialEl && serialEl.textContent.includes("waiting for boot output")) {
+    if (statusEl?.textContent.includes("waiting for boot output")) {
       setStatus("Still loading OS image. First boot may take up to a minute.", "warn");
     }
   }, 12000);
 
   setTimeout(() => {
-    if (document.getElementById("status")?.textContent.includes("Booting")) {
+    if (statusEl?.textContent.includes("Booting")) {
       setStatus("Boot is taking longer than expected. Hard refresh once (Ctrl+F5).", "warn");
     }
   }, 25000);
