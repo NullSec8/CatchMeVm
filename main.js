@@ -14,7 +14,26 @@ import {
 
 async function init() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js").then((reg) => {
+      if (reg.waiting) {
+        reg.waiting.postMessage({ type: "GET_VERSION" });
+      }
+      reg.addEventListener("updatefound", () => {
+        const newSw = reg.installing;
+        if (!newSw) return;
+        newSw.addEventListener("statechange", () => {
+          if (newSw.state === "installed" && navigator.serviceWorker.controller) {
+            toast("Update available. Reload to apply.", "ok", 10000, () => location.reload());
+          }
+        });
+      });
+    }).catch(() => {});
+
+    navigator.serviceWorker.addEventListener("message", (e) => {
+      if (e.data?.type === "VERSION" && e.data.version !== "catchmevm-v2") {
+        toast("Update available. Reload to apply.", "ok", 10000, () => location.reload());
+      }
+    });
   }
 
   showBootSkeleton();

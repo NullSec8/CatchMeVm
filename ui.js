@@ -10,13 +10,17 @@ function ensureToastContainer() {
   }
 }
 
-export function toast(message, level = "info") {
+export function toast(message, level = "info", duration = 3500, onClick = null) {
   ensureToastContainer();
   const el = document.createElement("div");
   el.className = `toast ${level}`;
   el.textContent = message;
+  if (onClick) {
+    el.style.cursor = "pointer";
+    el.addEventListener("click", () => { el.remove(); onClick(); });
+  }
   toastContainer.appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+  setTimeout(() => el.remove(), duration);
 }
 
 export function setStatus(message, level = "info") {

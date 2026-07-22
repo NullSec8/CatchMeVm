@@ -164,6 +164,15 @@ function appendSerial(text, serialEl, buf) {
 }
 
 export async function startVm({ distro, mode, quality, initialState = null }) {
+  if (state.emulator && typeof state.emulator.destroy === "function") {
+    try { await state.emulator.destroy(); } catch (_e) {}
+  }
+  state.emulator = null;
+  state.serialStatsCapture = null;
+
+  const oldSerial = document.getElementById("serial_console");
+  if (oldSerial) oldSerial.textContent = "[serial] waiting for boot output...";
+
   setStatus(initialState ? "Restoring snapshot..." : "Booting CatchMeVM...");
   applyModeUi(mode);
   initBootProgress(!initialState);

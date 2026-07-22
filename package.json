@@ -1,9 +1,12 @@
 {
   "name": "catchmevm-app",
   "version": "1.0.0",
+  "type": "module",
   "description": "Browser-based x86 VM (v86) with TinyCore Linux, dev tools, file upload. By NullSec8.",
   "author": "NullSec8 (https://github.com/NullSec8)",
   "scripts": {
+    "build": "esbuild main.js --bundle --minify --format=esm --outfile=dist/bundle.js --legal-comments=linked && cp index.html dist/index.html && cp style.css dist/style.css && cp sw.js dist/sw.js && cp manifest.json dist/manifest.json && cp -r assets dist/assets",
+    "test": "node --test tests/*.test.js",
     "serve": "npx --yes serve -l 8000",
     "start": "npx --yes serve -l 8000"
   }
