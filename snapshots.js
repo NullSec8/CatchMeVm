@@ -2,8 +2,12 @@ import { state, AUTO_SNAPSHOT_ID, DISTRO_TINYCORE, PREF_FAST_START } from "./sta
 import { idbSnapshotPut, idbSnapshotGetAll, idbSnapshotGet, idbSnapshotDelete } from "./idb.js";
 
 export function isFastStartEnabled() {
-  const v = localStorage.getItem(PREF_FAST_START);
-  return v === null ? true : String(v) !== "0";
+  try {
+    const v = localStorage.getItem(PREF_FAST_START);
+    return v === null ? true : String(v) !== "0";
+  } catch {
+    return true;
+  }
 }
 
 export async function saveAutoSnapshot(emulator, distro) {
@@ -28,9 +32,28 @@ export async function saveAutoSnapshot(emulator, distro) {
 }
 
 export async function getAutoSnapshot() {
-  if (!isFastStartEnabled()) return null;
-  const snap = await idbSnapshotGet(AUTO_SNAPSHOT_ID);
-  return snap?.state || null;
+  try {
+    if (!isFastStartEnabled()) return null;
+    const snap = await idbSnapshotGet(AUTO_SNAPSHOT_ID);
+    if (!snap || !snap.state) return null;
+    if (snap.state instanceof ArrayBuffer) return snap.state;
+    if (ArrayBuffer.isView(snap.state)) return snap.state.buffer;
+    return null;
+  } catch (e) {
+    console.warn("getAutoSnapshot failed:", e);
+    return null;
+  }
+}
+
+function normalizeStateBuffer(state) {
+  if (!state) return null;
+  if (state instanceof ArrayBuffer) return state;
+  if (ArrayBuffer.isView(state)) return state.buffer;
+  try {
+    return new Uint8Array(state).buffer;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveSnapshot(name) {
@@ -59,8 +82,10 @@ export async function deleteSnapshot(id) {
 export async function restoreSnapshot(id) {
   const snap = await idbSnapshotGet(id);
   if (!snap || !snap.state) throw new Error("Snapshot not found or invalid.");
+  const stateBuffer = normalizeStateBuffer(snap.state);
+  if (!stateBuffer) throw new Error("Snapshot state is invalid.");
   return {
-    state: snap.state instanceof ArrayBuffer ? snap.state : new ArrayBuffer(snap.state),
+    state: stateBuffer,
     distro: snap.distro || DISTRO_TINYCORE,
     mode: snap.mode || "gui",
   };

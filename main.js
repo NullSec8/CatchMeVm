@@ -1,7 +1,7 @@
 import { state, DISTRO_ARCH, DISTRO_TINYCORE } from "./state.js";
 import { startVm, getBootPreferences, setBootPreferences } from "./vm.js";
 import { bindFileUi } from "./files.js";
-import { bindSnapshotUi } from "./snapshots.js";
+import { bindSnapshotUi, isFastStartEnabled, getAutoSnapshot } from "./snapshots.js";
 import {
   setStatus,
   toast,
@@ -11,7 +11,6 @@ import {
   bindPaste,
   bindCopySerial,
 } from "./ui.js";
-import { isFastStartEnabled, getAutoSnapshot } from "./snapshots.js";
 
 async function init() {
   showBootSkeleton();
@@ -20,7 +19,12 @@ async function init() {
   let initialState = null;
 
   if (isFastStartEnabled()) {
-    initialState = await getAutoSnapshot();
+    try {
+      initialState = await getAutoSnapshot();
+    } catch (e) {
+      console.warn("Auto-snapshot load failed, booting fresh:", e);
+      initialState = null;
+    }
   }
 
   await startVm({ ...prefs, initialState });
@@ -235,5 +239,6 @@ function bindVmStats() {
 }
 
 init().catch((error) => {
+  console.error("CatchMeVM startup failed:", error);
   setStatus(`Startup failed: ${error.message}`, "err");
 });

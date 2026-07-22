@@ -1,6 +1,6 @@
 import { state, DISTRO_TINYCORE, DISTRO_ARCH, PREF_DISTRO, PREF_BOOT_MODE, PREF_QUALITY } from "./state.js";
 import { restoreIntoVm } from "./files.js";
-import { getAutoSnapshot, saveAutoSnapshot, renderSnapshotList } from "./snapshots.js";
+import { saveAutoSnapshot, renderSnapshotList } from "./snapshots.js";
 import { setStatus, toast, hideBootSkeleton, setBootStep, initBootProgress } from "./ui.js";
 
 const TINYCORE_DEV_ISO = "./assets/v86/TinyCore-11.0-dev.iso";
