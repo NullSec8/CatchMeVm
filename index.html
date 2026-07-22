@@ -7,337 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --bg: #0d1117;
-      --surface: #161b22;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --ok: #3fb950;
-      --warn: #d29922;
-      --err: #f85149;
-      --accent: #58a6ff;
-      --radius: 8px;
-      --gap: 12px;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: "Inter", system-ui, sans-serif;
-      font-size: 14px;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 20px;
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-
-    .header-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .header-brand h1 {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .header-brand span {
-      font-size: 0.75rem;
-      color: var(--muted);
-      font-weight: 400;
-    }
-
-    .header-toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .header-toolbar .field {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.8rem;
-      color: var(--muted);
-    }
-
-    .header-toolbar select {
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-family: inherit;
-      font-size: 0.8rem;
-    }
-
-    .header-toolbar button {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 6px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 0.8rem;
-      font-weight: 500;
-      transition: border-color 0.15s, background 0.15s;
-    }
-
-    .header-toolbar button:hover {
-      background: var(--border);
-      border-color: var(--muted);
-    }
-
-    .main {
-      display: flex;
-      flex: 1;
-      min-height: 0;
-    }
-
-    .vm-area {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-      padding: var(--gap);
-    }
-
-    #screen_container {
-      flex: 1;
-      min-height: 280px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      background: #000;
-      overflow: hidden;
-      contain: layout paint;
-    }
-
-    #screen_container > div {
-      white-space: pre;
-      font: 14px/1.3 "JetBrains Mono", monospace;
-      color: #94a3b8;
-      padding: 8px;
-    }
-
-    #screen_container > canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
-    }
-
-    #screen_container:fullscreen, #screen_container:-webkit-full-screen {
-      display: flex !important;
-      align-items: center;
-      justify-content: center;
-      background: #000;
-    }
-
-    #screen_container:fullscreen #vga, #screen_container:-webkit-full-screen #vga {
-      width: auto !important;
-      height: 100% !important;
-      max-width: 100%;
-      max-height: 100%;
-    }
-
-    .vm-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .boot-progress {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-top: 8px;
-    }
-    .boot-step { opacity: 0.4; }
-    .boot-step.active { opacity: 1; color: var(--accent); }
-    .boot-step.done { opacity: 1; color: var(--ok); }
-
-    .sidebar {
-      width: 340px;
-      flex-shrink: 0;
-      background: var(--surface);
-      border-left: 1px solid var(--border);
-      padding: 16px;
-      overflow-y: auto;
-    }
-
-    @media (max-width: 900px) {
-      .header { flex-direction: column; align-items: stretch; gap: 10px; }
-      .header-brand { justify-content: center; }
-      .header-toolbar { justify-content: center; }
-      .main { flex-direction: column; }
-      .sidebar { width: 100%; border-left: none; border-top: 1px solid var(--border); }
-    }
-
-    .panel-title {
-      margin: 0 0 10px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-    .row:last-of-type { margin-bottom: 0; }
-
-    button, .labelBtn {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 6px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-family: inherit;
-      font-size: 0.8rem;
-      font-weight: 500;
-      transition: border-color 0.15s, background 0.15s;
-    }
-
-    button:hover, .labelBtn:hover {
-      background: rgba(88, 166, 255, 0.1);
-      border-color: var(--accent);
-    }
-
-    .labelBtn input { display: none; }
-
-    #serialDetails { margin-top: 12px; }
-    #serialDetails summary {
-      cursor: pointer;
-      color: var(--muted);
-      font-size: 0.85rem;
-    }
-
-    #serial_console {
-      margin-top: 8px;
-      height: 120px;
-      overflow: auto;
-      user-select: text;
-      -webkit-user-select: text;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 10px;
-      color: #94a3b8;
-      font: 12px "JetBrains Mono", monospace;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .serial-controls { display: flex; gap: 8px; margin-top: 8px; }
-    #serial_input {
-      flex: 1;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      padding: 8px 10px;
-      font: 12px "JetBrains Mono", monospace;
-    }
-
-    .dropzone {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.85rem;
-      margin-bottom: 10px;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .dropzone.active { border-color: var(--accent); background: rgba(88, 166, 255, 0.06); color: var(--text); }
-
-    .status { min-height: 20px; margin-bottom: 8px; font-size: 0.8rem; color: var(--muted); }
-    .status.ok { color: var(--ok); }
-    .status.warn { color: var(--warn); }
-    .status.err { color: var(--err); }
-
-    .files-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-    .files-table th, .files-table td { padding: 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    .files-table th { color: var(--muted); font-weight: 500; }
-
-    .hint { font-size: 0.75rem; color: var(--muted); margin-top: 8px; margin-bottom: 0; }
-
-    .snapshots-panel summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
-    .snapshot-list { list-style: none; padding: 0; margin: 8px 0 0; max-height: 120px; overflow-y: auto; }
-    .snapshot-list li {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 6px 8px;
-      margin-bottom: 4px;
-      background: var(--bg);
-      border-radius: 6px;
-      font-size: 0.8rem;
-    }
-    .snapshot-list li span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-    .snapshot-list .snapshot-actions { display: flex; gap: 4px; flex-shrink: 0; }
-
-    .footer {
-      padding: 8px 20px;
-      font-size: 0.75rem;
-      color: var(--muted);
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-    }
-    .footer a { color: var(--accent); text-decoration: none; }
-    .footer a:hover { text-decoration: underline; }
-
-    .shortcuts-modal {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.75);
-      z-index: 1000;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .shortcuts-modal.open { display: flex; }
-    .shortcuts-content {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 20px;
-      max-width: 420px;
-      width: 100%;
-    }
-    .shortcuts-content h3 { margin: 0 0 12px; font-size: 1rem; }
-    .shortcuts-content table { width: 100%; font-size: 0.85rem; }
-    .shortcuts-content td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
-    .shortcuts-content td:last-child { color: var(--muted); }
-    .shortcuts-content code { font-size: 0.8rem; }
-    .shortcuts-close { margin-top: 12px; width: 100%; }
-
-    code { color: var(--accent); font-family: "JetBrains Mono", monospace; }
-  </style>
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <header class="header">
@@ -385,11 +55,24 @@
     <section class="vm-area">
       <div id="bootProgress" class="boot-progress" aria-hidden="true">
         <span id="bootStep1" class="boot-step">Download</span>
-        <span>→</span>
+        <span>&rarr;</span>
         <span id="bootStep2" class="boot-step">Boot</span>
-        <span>→</span>
+        <span>&rarr;</span>
         <span id="bootStep3" class="boot-step">Ready</span>
       </div>
+
+      <div id="bootSkeleton" class="boot-skeleton">
+        <div class="skeleton-spinner"></div>
+        <div class="skeleton-text">Booting CatchMeVM&hellip;</div>
+        <div class="skeleton-steps">
+          <span class="step active" id="skelStep1">Download</span>
+          <span>&rarr;</span>
+          <span class="step" id="skelStep2">Boot</span>
+          <span>&rarr;</span>
+          <span class="step" id="skelStep3">Ready</span>
+        </div>
+      </div>
+
       <div id="screen_container" tabindex="0" role="application" aria-label="VM display">
         <div></div>
         <canvas></canvas>
@@ -400,7 +83,7 @@
       <details class="snapshots-panel" style="margin-top:12px;">
         <summary>Snapshots</summary>
         <div class="row" style="margin-top:8px;">
-          <input id="snapshotName" type="text" placeholder="Name" style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:0.8rem;" />
+          <input id="snapshotName" type="text" placeholder="Name" class="text-input-sm" />
           <button id="saveSnapshotBtn">Save</button>
         </div>
         <ul id="snapshotList" class="snapshot-list"></ul>
@@ -423,56 +106,59 @@
     </section>
 
     <aside class="sidebar">
-      <h2 class="panel-title">Files</h2>
-      <div id="dropzone" class="dropzone">Drop files or choose</div>
-      <div class="row">
-        <label class="labelBtn">Choose<input id="fileInput" type="file" multiple /></label>
-        <button id="importBtn">Import</button>
-        <button id="restoreBtn">Restore</button>
+      <button id="sidebarToggle" class="sidebar-toggle" title="Toggle sidebar">&#9664;</button>
+      <div class="sidebar-content">
+        <h2 class="panel-title">Files</h2>
+        <div id="dropzone" class="dropzone">Drop files or choose</div>
+        <div class="row">
+          <label class="labelBtn">Choose<input id="fileInput" type="file" multiple /></label>
+          <button id="importBtn">Import</button>
+          <button id="restoreBtn">Restore</button>
+        </div>
+        <div class="row">
+          <input
+            id="githubRepoInput"
+            type="text"
+            placeholder="https://github.com/owner/repo"
+            class="text-input"
+          />
+          <button id="importGithubBtn" type="button">Import GitHub repo</button>
+        </div>
+        <div class="row">
+          <button id="exportSelectedBtn">Export selected</button>
+          <button id="exportAllBtn">Export all</button>
+          <button id="clearBtn">Clear</button>
+        </div>
+        <div id="status" class="status">Starting VM&hellip;</div>
+        <table class="files-table">
+          <thead>
+            <tr>
+              <th><input id="checkAll" type="checkbox" /></th>
+              <th>Path</th>
+              <th>Size</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
       </div>
-      <div class="row">
-        <input
-          id="githubRepoInput"
-          type="text"
-          placeholder="https://github.com/owner/repo (optional /tree/branch)"
-          style="flex:1;min-width:220px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:0.8rem;"
-        />
-        <button id="importGithubBtn" type="button">Import GitHub repo</button>
-      </div>
-      <div class="row">
-        <button id="exportSelectedBtn">Export selected</button>
-        <button id="exportAllBtn">Export all</button>
-        <button id="clearBtn">Clear</button>
-      </div>
-      <div id="status" class="status">Starting VM…</div>
-      <table class="files-table">
-        <thead>
-          <tr>
-            <th><input id="checkAll" type="checkbox" /></th>
-            <th>Path</th>
-            <th>Size</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody id="rows"></tbody>
-      </table>
     </aside>
   </div>
 
   <footer class="footer">
-    Powered by <a href="https://copy.sh/v86/" target="_blank" rel="noopener">v86</a> · Made by <a href="https://github.com/NullSec8" target="_blank" rel="noopener">NullSec8</a>
+    Powered by <a href="https://copy.sh/v86/" target="_blank" rel="noopener">v86</a> &middot; Made by <a href="https://github.com/NullSec8" target="_blank" rel="noopener">NullSec8</a>
   </footer>
 
-  <div id="statsModal" class="shortcuts-modal" role="dialog" aria-label="VM stats">
-    <div class="shortcuts-content">
+  <div id="statsModal" class="modal-overlay" role="dialog" aria-label="VM stats">
+    <div class="modal-content">
       <h3>VM resources</h3>
-      <pre id="statsContent" style="margin:12px 0;padding:12px;background:#0a0d12;border-radius:8px;font-size:0.85rem;overflow:auto;max-height:240px;white-space:pre-wrap;"></pre>
-      <button id="statsCloseBtn" class="shortcuts-close">Close</button>
+      <pre id="statsContent"></pre>
+      <button id="statsCloseBtn" class="modal-close">Close</button>
     </div>
   </div>
 
-  <div id="shortcutsModal" class="shortcuts-modal" role="dialog" aria-label="Keyboard shortcuts">
-    <div class="shortcuts-content">
+  <div id="shortcutsModal" class="modal-overlay" role="dialog" aria-label="Keyboard shortcuts">
+    <div class="modal-content">
       <h3>Keyboard shortcuts</h3>
       <table>
         <tr><td>Focus VM</td><td><code>Click VM</code> or Focus VM button</td></tr>
@@ -483,7 +169,7 @@
         <tr><td>Fullscreen</td><td>Fullscreen button or <code>F11</code></td></tr>
         <tr><td>Exit fullscreen</td><td><code>Esc</code></td></tr>
       </table>
-      <button id="shortcutsCloseBtn" class="shortcuts-close">Close</button>
+      <button id="shortcutsCloseBtn" class="modal-close">Close</button>
     </div>
   </div>
 
