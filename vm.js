@@ -15,6 +15,30 @@ const ARCH_FS_BASEURL = "https://i.copy.sh/arch/";
 const ARCH_FS_INDEX = "https://i.copy.sh/fs.json";
 const ARCH_STATE_URL = "https://i.copy.sh/arch_state-v3.bin.zst";
 const MIN_ISO_SIZE = 50 * 1024 * 1024;
+const ISO_CACHE_KEY = "catchmevm.isoCache";
+const ISO_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getCachedIsoUrl(distro) {
+  try {
+    const raw = localStorage.getItem(ISO_CACHE_KEY);
+    if (!raw) return null;
+    const cache = JSON.parse(raw);
+    const entry = cache[distro];
+    if (!entry || !entry.url || Date.now() - entry.ts > ISO_CACHE_TTL) return null;
+    return entry.url;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedIsoUrl(distro, url) {
+  try {
+    const raw = localStorage.getItem(ISO_CACHE_KEY);
+    const cache = raw ? JSON.parse(raw) : {};
+    cache[distro] = { url, ts: Date.now() };
+    localStorage.setItem(ISO_CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
 
 async function probeIsoUrl(url, minSize = MIN_ISO_SIZE) {
   try {
@@ -58,25 +82,30 @@ function getArchAssetConfig() {
 }
 
 async function getIsoUrl(distro) {
+  const cached = getCachedIsoUrl(distro);
+  if (cached) return { distro, url: cached, source: "cache" };
+
   if (distro === DISTRO_ARCH) {
     const [archProxy, archStable] = await Promise.all([
       probeIsoUrl(ARCH_LINUX_ISO_PROXY, MIN_ISO_SIZE),
       probeIsoUrl(ARCH_LINUX_ISO_STABLE, MIN_ISO_SIZE),
     ]);
-    if (archProxy) return { distro: DISTRO_ARCH, url: archProxy, source: "arch-proxy" };
-    if (archStable) return { distro: DISTRO_ARCH, url: archStable, source: "arch-stable" };
-    return { distro: DISTRO_ARCH, url: ARCH_LINUX_ISO_LATEST, source: "arch-latest" };
+    const result = archProxy || archStable || ARCH_LINUX_ISO_LATEST;
+    const source = archProxy ? "arch-proxy" : archStable ? "arch-stable" : "arch-latest";
+    setCachedIsoUrl(distro, result);
+    return { distro: DISTRO_ARCH, url: result, source };
   }
 
   const [localDev, proxyDev] = await Promise.all([
     probeIsoUrl(TINYCORE_DEV_ISO, MIN_ISO_SIZE),
     probeIsoUrl(TINYCORE_DEV_ISO_PROXY, MIN_ISO_SIZE),
   ]);
-  if (localDev) return { distro: DISTRO_TINYCORE, url: localDev, source: "tinycore-local-dev" };
-  if (proxyDev) return { distro: DISTRO_TINYCORE, url: proxyDev, source: "tinycore-proxy-dev" };
+  if (localDev) { setCachedIsoUrl(distro, localDev); return { distro: DISTRO_TINYCORE, url: localDev, source: "tinycore-local-dev" }; }
+  if (proxyDev) { setCachedIsoUrl(distro, proxyDev); return { distro: DISTRO_TINYCORE, url: proxyDev, source: "tinycore-proxy-dev" }; }
 
   const releaseDev = await probeIsoUrl(TINYCORE_DEV_ISO_RELEASE, MIN_ISO_SIZE);
-  if (releaseDev) return { distro: DISTRO_TINYCORE, url: releaseDev, source: "tinycore-release-dev" };
+  if (releaseDev) { setCachedIsoUrl(distro, releaseDev); return { distro: DISTRO_TINYCORE, url: releaseDev, source: "tinycore-release-dev" }; }
+  setCachedIsoUrl(distro, TINYCORE_BASE_ISO);
   return { distro: DISTRO_TINYCORE, url: TINYCORE_BASE_ISO, source: "tinycore-base" };
 }
 
