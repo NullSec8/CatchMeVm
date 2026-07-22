@@ -2,6 +2,21 @@ import { state, filesManifest, selectedUploads, setSelectedUploads, MAX_FILE_SIZ
 import { idbPut, idbGetAll, idbDelete, idbClear } from "./idb.js";
 import { safeName, getUploadDir, vmPathFromName, parseGitHubRepoInput, downloadBlob, humanSize } from "./utils.js";
 
+let jszipPromise = null;
+function loadJSZip() {
+  if (!jszipPromise) {
+    jszipPromise = new Promise((resolve, reject) => {
+      if (typeof JSZip !== "undefined") return resolve(JSZip);
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js";
+      s.onload = () => resolve(JSZip);
+      s.onerror = () => reject(new Error("Failed to load JSZip"));
+      document.head.appendChild(s);
+    });
+  }
+  return jszipPromise;
+}
+
 function assertFsApi(emulator) {
   if (typeof emulator.create_file !== "function" || typeof emulator.read_file !== "function") {
     throw new Error("v86 file APIs missing. Ensure filesystem:{} is enabled in VM constructor.");
@@ -25,29 +40,30 @@ function toUint8Array(data) {
 export async function restoreIntoVm(emulator) {
   const saved = await idbGetAll();
   if (!saved.length) return 0;
-  let restored = 0;
-  for (const rec of saved) {
+
+  const tasks = saved.map((rec) => {
     const bytes = toUint8Array(rec.bytes);
-    if (!bytes) {
-      console.warn("Skipping file with invalid data:", rec.vmPath);
-      continue;
-    }
+    if (!bytes) return null;
     const vmPath = migrateVmPath(rec.vmPath, state.mode);
-    try {
-      await emulator.create_file(vmPath, bytes);
-      const updated = { ...rec, vmPath, bytes };
-      filesManifest.set(vmPath, updated);
-      if (vmPath !== rec.vmPath) {
-        idbDelete(rec.vmPath).catch(() => {});
-        idbPut(updated).catch(() => {});
-      }
-      restored++;
-    } catch (err) {
-      console.warn("Restore failed for", rec.vmPath, err);
-    }
-  }
+    return emulator.create_file(vmPath, bytes)
+      .then(() => {
+        const updated = { ...rec, vmPath, bytes };
+        filesManifest.set(vmPath, updated);
+        if (vmPath !== rec.vmPath) {
+          idbDelete(rec.vmPath).catch(() => {});
+          idbPut(updated).catch(() => {});
+        }
+        return 1;
+      })
+      .catch((err) => {
+        console.warn("Restore failed for", rec.vmPath, err);
+        return 0;
+      });
+  });
+
+  const results = await Promise.all(tasks.filter(Boolean));
   renderRows();
-  return restored;
+  return results.reduce((a, b) => a + b, 0);
 }
 
 export async function importGitHubRepoIntoVm(emulator, repoInput, mode) {
@@ -66,6 +82,7 @@ export async function importGitHubRepoIntoVm(emulator, repoInput, mode) {
   }
   if (!response.ok) throw new Error(`GitHub download failed (${response.status}).`);
   const zipBuffer = await response.arrayBuffer();
+  const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(zipBuffer);
   const rootDir = `${safeName(repo)}-${safeName(branch)}`;
   const vmRoot = `${getUploadDir(mode)}/${safeName(repo)}`;
@@ -238,6 +255,7 @@ export function bindFileUi(setStatus) {
         setStatus("Exported 1 file.", "ok");
         return;
       }
+      const JSZip = await loadJSZip();
       const zip = new JSZip();
       for (const vmPath of selected) {
         const rec = filesManifest.get(vmPath);

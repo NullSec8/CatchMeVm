@@ -6,6 +6,15 @@
   <title>CatchMeVM – Linux in your browser</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://i.copy.sh" />
+  <link rel="preconnect" href="https://archive.archlinux.org" />
+  <link rel="preconnect" href="https://geo.mirror.pkgbuild.com" />
+  <link rel="preconnect" href="https://codeload.github.com" />
+  <link rel="preload" href="./assets/v86/v86.wasm" as="fetch" type="application/wasm" crossorigin />
+  <link rel="preload" href="./assets/v86/libv86.js" as="script" crossorigin />
+  <link rel="preload" href="./assets/v86/seabios.bin" as="fetch" crossorigin />
+  <link rel="preload" href="./assets/v86/vgabios.bin" as="fetch" crossorigin />
+  <link rel="preload" href="./assets/v86/buildroot-bzimage68.bin" as="fetch" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./style.css" />
 </head>
@@ -174,7 +183,6 @@
   </div>
 
   <script src="./assets/v86/libv86.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script type="module" src="./main.js"></script>
 </body>
 </html>
