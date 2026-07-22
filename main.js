@@ -11,8 +11,7 @@ import {
   bindPaste,
   bindCopySerial,
 } from "./ui.js";
-import { idbSnapshotGet } from "./idb.js";
-import { isFastStartEnabled } from "./snapshots.js";
+import { isFastStartEnabled, getAutoSnapshot } from "./snapshots.js";
 
 async function init() {
   showBootSkeleton();
